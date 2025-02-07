@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">    
+<link rel="icon" href="https://carino.systems/assets/images/logo.webp">
+<!-- Open Graph Protocol Meta Tags -->
+<meta property="og:title" content="Carino Teleprompternomican"/>
+<meta property="twitter:title" content="Carino Teleprompternomican"/>
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://carino.systems"/>
+<meta property="og:image" content="images/ogp.webp"/>
+<meta property="og:description" content="A simple web teleprompter"/>
+<meta property="og:site_name" content="Carino Teleprompternomican"/>
+<meta property="og:locale" content="en_US"/>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teleprompter</title>
+    <style>
+        @font-face {
+            font-family: 'LiberationSans';
+            src: url('https://carino.systems/assets/webfonts/LiberationSans-Regular.ttf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'LiberationSans';
+            src: url('https://carino.systems/assets/webfonts/LiberationSans-Bold.ttf') format('opentype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'LiberationSans';
+            src: url('https://carino.systems/assets/webfonts/LiberationSans-Italic.ttf') format('opentype');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'LiberationSans';
+            src: url('https://carino.systems/assets/webfonts/LiberationSans-BoldItalic.ttf') format('opentype');
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'LiberationMono';
+            src: url('https://carino.systems/assets/webfonts/LiberationMono-Regular.ttf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'LiberationMono';
+            src: url('https://carino.systems/assets/webfonts/LiberationMono-Bold.ttf') format('opentype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'LiberationMono';
+            src: url('https://carino.systems/assets/webfonts/LiberationMono-Italic.ttf') format('opentype');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'LiberationMono';
+            src: url('https://carino.systems/assets/webfonts/LiberationMono-BoldItalic.ttf') format('opentype');
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'RedHatFont';
+            src: url('https://carino.systems/assets/webfonts/RedHatDisplay-Italic.otf') format('opentype');
+            font-weight: 100 900;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'HomeVideo';
+            src: url('https://carino.systems/assets/webfonts/HomeVideo-BLG6G.ttf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'HomeVideo';
+            src: url('https://carino.systems/assets/webfonts/HomeVideoBold-R90Dv.ttf') format('opentype');
+            font-weight: bold;
+            font-style: italic;
+        }
+        body {
+            background-color: var(--background-color, black);
+            color: var(--default-font-color, rgb(255, 255, 255));
+            font-size: 170px;
+            text-align: center;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            justify-content: center;
+        }
+        #teleprompter {
+            width: 83%;
+            max-height: 90vh;
+            font-family: RedHatFont;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            padding: 20px;
+            word-wrap: break-word;
+            scrollbar-color: var(--scrollbar-color, gray) var(--background-color, black);
+            scrollbar-width: thin;
+            transition: transform 0.3s;
+        }
+        #teleprompter::-webkit-scrollbar {
+            width: 10px;
+        }
+        #teleprompter::-webkit-scrollbar-thumb {
+            background-color: var(--scrollbar-color, gray);
+            border-radius: 5px;
+        }
+        #teleprompter::-webkit-scrollbar-track {
+            background-color: var(--background-color, black);
+        }
+        .bracket-text {
+            color: var(--bracket-text-color, red);
+        }
+        .controls {
+            font-family: LiberationSans;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            padding: 3px;
+            background: rgba(0, 0, 0, 0.8);
+        }
+        button, label {
+            font-size: 18px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover, label:hover {
+            background: #666;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .marker {
+            position: fixed;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 80px 160px 80px 0;
+            border-color: transparent rgb(255, 255, 255) transparent transparent;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="teleprompter" contenteditable="true"><br><br><br><br>Welcome to the <span class="bracket-text">[Teleprompter]</span>! Load a text file or paste text to start. This code is <span class="bracket-text">[free]</span> and <span class="bracket-text">[open source]</span>.<br><br><br><br></div>
+    <div class="controls">
+        <label for="fileInput">Load File</label>
+        <input type="file" id="fileInput">
+        <button onclick="toggleScroll()" role="button" tabindex="0">Play/Pause</button>
+        <button onclick="increaseSpeed()">+</button>
+        <button onclick="decreaseSpeed()">-</button>
+        <button onclick="increaseFontSize()">A+</button>
+        <button onclick="decreaseFontSize()">A-</button>
+        <button onclick="resetTeleprompter()">Reset</button>
+        <button onclick="toggleMarker()">Marker</button>
+        <button onclick="toggleMirror()">Mirror</button>
+        <button onclick="toggleFont()">Font</button>
+    </div>
+    <div id="marker" class="marker" style="display: none;"></div>
+    <script>
+        let scrolling = true;
+        let speed = 4;
+        let markerPositions = [
+            null,
+            { top: "5%", left: "10px", borderColor: "transparent rgb(255, 255, 255) transparent transparent", transform: "rotate(0deg)" }, // Top-left
+            { top: "5%", right: "10px", borderColor: "transparent transparent transparent rgb(255, 255, 255)", transform: "rotate(180deg)" }, // Top-right
+            { top: "40%", left: "10px", borderColor: "transparent rgb(255, 255, 255) transparent transparent", transform: "rotate(0deg)" }, // Middle-left
+            { top: "40%", right: "10px", borderColor: "transparent transparent transparent rgb(255, 255, 255)", transform: "rotate(180deg)" } // Middle-right
+        ];
+        let markerIndex = 0;
+        let mirrored = false;
+        let fonts = ['LiberationMono', 'RedHatFont', 'HomeVideo'];
+        let fontIndex = 1; // Default to RedHatFont
+
+        function toggleFont() {
+            fontIndex = (fontIndex + 1) % fonts.length;
+            document.getElementById('teleprompter').style.fontFamily = fonts[fontIndex];
+            localStorage.setItem('selectedFont', fonts[fontIndex]); // Save choice
+        }
+        window.onload = function() {
+            requestAnimationFrame(scrollStep); /*Starts scrolling by default*/
+            let storedFont = localStorage.getItem('selectedFont');
+            if (storedFont) document.getElementById('teleprompter').style.fontFamily = storedFont;
+        };
+
+        let scrollStep = () => {
+            if (scrolling) {
+                document.getElementById('teleprompter').scrollTop += speed;
+                requestAnimationFrame(scrollStep);
+            }
+        };
+        function toggleScroll() {
+            scrolling = !scrolling;
+            if (scrolling) requestAnimationFrame(scrollStep);
+        }
+        
+        function increaseSpeed() {
+            speed += 1;
+        }
+        
+        function decreaseSpeed() {
+            if (speed > 1) speed -= 1;
+        }
+        
+        function increaseFontSize() {
+            let tp = document.getElementById('teleprompter');
+            let size = window.getComputedStyle(tp).fontSize;
+            tp.style.fontSize = (parseInt(size) + 2) + 'px';
+        }
+        
+        function decreaseFontSize() {
+            let tp = document.getElementById('teleprompter');
+            let size = window.getComputedStyle(tp).fontSize;
+            tp.style.fontSize = (parseInt(size) - 2) + 'px';
+        }
+        
+        function resetTeleprompter() {
+            let tp = document.getElementById('teleprompter');
+            tp.scrollTop = 0;
+        }
+        
+        function toggleMarker() {
+            markerIndex = (markerIndex + 1) % markerPositions.length;
+            let marker = document.getElementById('marker');
+            let pos = markerPositions[markerIndex];
+
+            if (pos) {
+                Object.assign(marker.style, {
+                    display: "block",
+                    top: pos.top,
+                    left: pos.left || "auto",
+                    right: pos.right || "auto",
+                    borderWidth: pos.right ? "80px 160px 80px 0" : "80px 0 80px 160px",
+                    borderColor: pos.right ? "transparent rgb(255, 255, 255) transparent transparent"
+                                            : "transparent transparent transparent rgb(255, 255, 255)"
+                });
+            } else {
+                marker.style.display = "none";
+            }
+        }
+        
+        function toggleMirror() {
+            let tp = document.getElementById('teleprompter');
+            mirrored = !mirrored;
+            tp.style.transform = mirrored ? 'scaleX(-1)' : 'scaleX(1)';
+        }
+        
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            let reader = new FileReader();
+            reader.onload = function() {
+                let text = reader.result.replace(/\[(.*?)\]/g, '<span class="bracket-text">[$1]</span>');
+                let tp = document.getElementById('teleprompter');
+                tp.innerHTML = text;
+                tp.scrollTop = 0;
+            };
+            reader.readAsText(event.target.files[0]);
+        });
+
+        document.addEventListener('paste', function(event) {
+            event.preventDefault();
+            let text = event.clipboardData.getData('text').replace(/\[(.*?)\]/g, '<span class="bracket-text">[$1]</span>');
+            let tp = document.getElementById('teleprompter');
+            tp.innerHTML = text;
+            tp.scrollTop = 0;
+        });
+    </script>
+</body>
+</html>
