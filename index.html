@@ -188,7 +188,22 @@
     <div id="marker" class="marker" style="display: none;"></div>
     <script>
         let scrolling = true;
-        let speed = 4;
+        let speed = getScrollSpeed(); // Set speed based on the browser
+
+        function getScrollSpeed() {
+            const userAgent = navigator.userAgent;
+        
+            if (userAgent.includes("Firefox")) {
+                return 2; // Speed for Firefox
+            } else if (userAgent.includes("Chrome") && !userAgent.includes("Edg")) {
+                return 4; // Speed for Chrome (not Edge)
+            } else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) {
+                return 4; // Speed for Safari (WebKit)
+            } else if (userAgent.includes("Edge")) {
+                return 2; // Speed for Edge
+            }
+            return 2; // Default speed for other browsers
+        }
         let markerPositions = [
             null,
             { top: "5%", left: "10px", borderColor: "transparent rgb(255, 255, 255) transparent transparent", transform: "rotate(0deg)" }, // Top-left
