@@ -76,7 +76,7 @@
 
         @font-face {
             font-family: 'RedHatFont';
-            src: url('https://miguelcarino.github.io/AssetsAndData/fonts/RedHatDisplay-Regular') format('opentype');
+            src: url('https://miguelcarino.github.io/AssetsAndData/fonts/RedHatDisplay-Regular.otf') format('opentype');
             font-weight: 100 900;
             font-style: normal;
         }
@@ -194,7 +194,7 @@
     </div>
     <div id="marker" class="marker" style="display: none;"></div>
     <script>
-        let scrolling = true;
+        let scrolling = false;
         let speed = getScrollSpeed(); // Set speed based on the browser
 
         function getScrollSpeed() {
@@ -273,6 +273,7 @@
 
         window.onload = function() {
             toggleMarker();
+            toggleScroll();
         };
 
         function toggleMarker() {
