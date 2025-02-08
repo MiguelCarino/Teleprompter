@@ -76,9 +76,9 @@
 
         @font-face {
             font-family: 'RedHatFont';
-            src: url('https://carino.systems/assets/webfonts/RedHatDisplay-Italic.otf') format('opentype');
+            src: url('https://miguelcarino.github.io/AssetsAndData/fonts/RedHatDisplay-Regular') format('opentype');
             font-weight: 100 900;
-            font-style: italic;
+            font-style: normal;
         }
 
         @font-face {
@@ -93,10 +93,17 @@
             font-weight: bold;
             font-style: italic;
         }
+        @font-face {
+            font-family: 'IbmPlex';
+            src: url('https://miguelcarino.github.io/AssetsAndData/fonts/IBMPlexSans-Text.otf') format('opentype');
+            font-weight: 100 900;
+            font-style: italic;
+        }
+
         body {
             background-color: var(--background-color, black);
             color: var(--default-font-color, rgb(255, 255, 255));
-            font-size: 170px;
+            font-size: 200px;
             text-align: center;
             overflow: hidden;
             margin: 0;
@@ -194,7 +201,7 @@
             const userAgent = navigator.userAgent;
         
             if (userAgent.includes("Firefox")) {
-                return 2; // Speed for Firefox
+                return 4; // Speed for Firefox
             } else if (userAgent.includes("Chrome") && !userAgent.includes("Edg")) {
                 return 4; // Speed for Chrome (not Edge)
             } else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) {
@@ -213,8 +220,9 @@
         ];
         let markerIndex = 0;
         let mirrored = false;
-        let fonts = ['LiberationMono', 'RedHatFont', 'HomeVideo'];
-        let fontIndex = 1; // Default to RedHatFont
+        let fonts = ['IbmPlex','RedHatFont', 'LiberationMono', 'HomeVideo',
+        ];
+        let fontIndex = 0; // Default to font
 
         function toggleFont() {
             fontIndex = (fontIndex + 1) % fonts.length;
@@ -262,7 +270,11 @@
             let tp = document.getElementById('teleprompter');
             tp.scrollTop = 0;
         }
-        
+
+        window.onload = function() {
+            toggleMarker();
+        };
+
         function toggleMarker() {
             markerIndex = (markerIndex + 1) % markerPositions.length;
             let marker = document.getElementById('marker');
