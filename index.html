@@ -4,102 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teleprompter</title>
-    <link rel="icon" href="https://carino.systems/assets/images/logo.webp">
+    <link rel="icon" href="logo.webp">
     <!-- Open Graph Protocol Meta Tags -->
     <meta property="og:title" content="Carino Teleprompternomican"/>
     <meta property="twitter:title" content="Carino Teleprompternomican"/>
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://carino.systems"/>
-    <meta property="og:image" content="images/ogp.webp"/>
+    <meta property="og:url" content="https://teleprompter.carino.systems"/>
+    <meta property="og:image" content="logo.webp"/>
     <meta property="og:description" content="A simple web teleprompter"/>
     <meta property="og:site_name" content="Carino Teleprompternomican"/>
     <meta property="og:locale" content="en_US"/>
+    <link rel="stylesheet" href="fonts/carino-fonts.css">
     <style>
-        @font-face {
-            font-family: 'LiberationSans';
-            src: url('https://carino.systems/assets/webfonts/LiberationSans-Regular.ttf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'LiberationSans';
-            src: url('https://carino.systems/assets/webfonts/LiberationSans-Bold.ttf') format('opentype');
-            font-weight: bold;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'LiberationSans';
-            src: url('https://carino.systems/assets/webfonts/LiberationSans-Italic.ttf') format('opentype');
-            font-weight: normal;
-            font-style: italic;
-        }
-
-        @font-face {
-            font-family: 'LiberationSans';
-            src: url('https://carino.systems/assets/webfonts/LiberationSans-BoldItalic.ttf') format('opentype');
-            font-weight: bold;
-            font-style: italic;
-        }
-
-        @font-face {
-            font-family: 'LiberationMono';
-            src: url('https://carino.systems/assets/webfonts/LiberationMono-Regular.ttf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'LiberationMono';
-            src: url('https://carino.systems/assets/webfonts/LiberationMono-Bold.ttf') format('opentype');
-            font-weight: bold;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'LiberationMono';
-            src: url('https://carino.systems/assets/webfonts/LiberationMono-Italic.ttf') format('opentype');
-            font-weight: normal;
-            font-style: italic;
-        }
-
-        @font-face {
-            font-family: 'LiberationMono';
-            src: url('https://carino.systems/assets/webfonts/LiberationMono-BoldItalic.ttf') format('opentype');
-            font-weight: bold;
-            font-style: italic;
-        }
-
-        @font-face {
-            font-family: 'RedHatFont';
-            src: url('https://miguelcarino.github.io/Depot/fonts/RedHatDisplay-Regular.otf') format('opentype');
-            font-weight: 100 900;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'HomeVideo';
-            src: url('https://carino.systems/assets/webfonts/HomeVideo-BLG6G.ttf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-        @font-face {
-            font-family: 'HomeVideo';
-            src: url('https://carino.systems/assets/webfonts/HomeVideoBold-R90Dv.ttf') format('opentype');
-            font-weight: bold;
-            font-style: italic;
-        }
-        @font-face {
-            font-family: 'IbmPlex';
-            src: url('https://miguelcarino.github.io/Depot/fonts/IBMPlexSans-Text.otf') format('opentype');
-            font-weight: 100 900;
-            font-style: italic;
-        }
-
         body {
-            background-color: var(--background-color, black);
-            color: var(--default-font-color, rgb(255, 255, 255));
+            background-color: var(--background-color, #050505);
+            color: var(--default-font-color, #fff);
             font-size: 200px;
             text-align: center;
             overflow: hidden;
@@ -113,12 +32,12 @@
         #teleprompter {
             width: 83%;
             max-height: 90vh;
-            font-family: RedHatFont;
+            font-family: 'Red Hat Display';
             overflow-y: auto;
             white-space: pre-wrap;
             padding: 20px;
             word-wrap: break-word;
-            scrollbar-color: var(--scrollbar-color, gray) var(--background-color, black);
+            scrollbar-color: var(--scrollbar-color, #666) var(--background-color, #050505);
             scrollbar-width: thin;
             transition: transform 0.3s;
         }
@@ -126,17 +45,17 @@
             width: 10px;
         }
         #teleprompter::-webkit-scrollbar-thumb {
-            background-color: var(--scrollbar-color, gray);
+            background-color: var(--scrollbar-color, #666);
             border-radius: 5px;
         }
         #teleprompter::-webkit-scrollbar-track {
-            background-color: var(--background-color, black);
+            background-color: var(--background-color, #050505);
         }
         .bracket-text {
-            color: var(--bracket-text-color, red);
+            color: var(--bracket-text-color, #ef4444);
         }
         .controls {
-            font-family: LiberationSans;
+            font-family: 'IBM Plex Sans';
             position: fixed;
             bottom: 0;
             width: 100%;
@@ -145,20 +64,22 @@
             gap: 10px;
             justify-content: center;
             padding: 3px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(5, 5, 5, 0.8);
         }
         button, label {
             font-size: 18px;
             padding: 10px 20px;
-            border: none;
+            border: 1px solid #262626;
             border-radius: 5px;
-            background: #444;
-            color: white;
+            background: #0d0d0d;
+            color: #fff;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: 0.2s;
         }
         button:hover, label:hover {
-            background: #666;
+            border-color: #eab308;
+            color: #eab308;
+            background: rgba(234, 179, 8, 0.05);
         }
         input[type="file"] {
             display: none;
@@ -217,20 +138,13 @@
         ];
         let markerIndex = 0;
         let mirrored = false;
-        let fonts = ['IbmPlex','RedHatFont', 'LiberationMono', 'HomeVideo',
-        ];
-        let fontIndex = 0; // Default to font
+        let fonts = ["'IBM Plex Sans'", "'Red Hat Display'", "'IBM Plex Mono'"];
+        let fontIndex = 1; // Default to 'Red Hat Display'
 
         function toggleFont() {
             fontIndex = (fontIndex + 1) % fonts.length;
             document.getElementById('teleprompter').style.fontFamily = fonts[fontIndex];
-            localStorage.setItem('selectedFont', fonts[fontIndex]); // Save choice
         }
-        window.onload = function() {
-            requestAnimationFrame(scrollStep); /*Starts scrolling by default*/
-            let storedFont = localStorage.getItem('selectedFont');
-            if (storedFont) document.getElementById('teleprompter').style.fontFamily = storedFont;
-        };
 
         let scrollStep = () => {
             if (scrolling) {
