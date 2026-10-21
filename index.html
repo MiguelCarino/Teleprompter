@@ -12,7 +12,11 @@
     <meta property="og:title" content="TelePrompter">
     <meta property="og:description" content="A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.">
     <meta property="og:url" content="https://teleprompter.carino.systems/">
-    <meta property="og:image" content="https://teleprompter.carino.systems/logo.webp">
+    <meta property="og:image" content="https://teleprompter.carino.systems/og.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="TelePrompter">
+    <meta name="twitter:card" content="summary_large_image">
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "TelePrompter", "url": "https://teleprompter.carino.systems/", "description": "A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.", "operatingSystem": "Any (runs in a web browser)", "isAccessibleForFree": true, "author": {"@type": "Person", "name": "Miguel Cariño", "url": "https://carino.systems/"}}</script>
     <!-- /carino:head -->
     <link rel="icon" href="logo.webp">
@@ -103,7 +107,7 @@
     </style>
 </head>
 <body>
-    <div id="teleprompter" contenteditable="true"><br><br><br><br>Welcome to the <span class="bracket-text">[Teleprompter]</span>! Load a text file or paste text to start. This code is <span class="bracket-text">[free]</span> and <span class="bracket-text">[open source]</span>.<br><br><br><br></div>
+    <div id="teleprompter" role="main" contenteditable="true"><br><br><br><br>Welcome to the <span class="bracket-text">[Teleprompter]</span>! Load a text file or paste text to start. This code is <span class="bracket-text">[free]</span> and <span class="bracket-text">[open source]</span>.<br><br><br><br></div>
     <div class="controls">
         <label for="fileInput">Load File</label>
         <input type="file" id="fileInput">
