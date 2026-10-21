@@ -1,5 +1,22 @@
 # Teleprompter
-A simple web teleprompter
+
+A full-screen scrolling teleprompter: load a text file or paste your script, and read it as it scrolls.
+
+**[Open it →](https://teleprompter.carino.systems/)** — runs in your browser, nothing to install, no account.
+
+![Teleprompter showing large white text with a reading marker and the control bar at the bottom](screenshot.webp)
+
+## What it does
+
+- Load a plain-text file or paste text; it replaces the script and starts from the top. You can also edit the text in place.
+- Scrolling starts when the page opens. Play/Pause stops and resumes it, and + / − change the speed.
+- A+ / A− change the text size, and Font cycles through IBM Plex Sans, Red Hat Display and IBM Plex Mono.
+- Mirror flips the text horizontally, for teleprompter glass that reflects the screen.
+- Marker shows an arrow for your reading line and moves it between four positions on the left and right edges.
+- Anything in [square brackets] is shown in red, for cues like [pause].
+- Reset goes back to the top.
+
+The script is read from your file inside the browser and is never uploaded. Nothing is saved either, so reloading the page clears it.
 
 ## Licensing
 
