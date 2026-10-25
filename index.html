@@ -20,229 +20,249 @@
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "TelePrompter", "url": "https://teleprompter.carino.systems/", "description": "A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.", "operatingSystem": "Any (runs in a web browser)", "isAccessibleForFree": true, "author": {"@type": "Person", "name": "Miguel Cariño", "url": "https://carino.systems/"}}</script>
     <!-- /carino:head -->
     <link rel="icon" href="logo.webp">
-    <!-- Open Graph Protocol Meta Tags -->
-    <meta property="twitter:title" content="Carino Teleprompternomican"/>
     <link rel="stylesheet" href="fonts/carino-fonts.css">
+    <link rel="stylesheet" href="carino-ui.css">
     <style>
-        body {
-            background-color: var(--background-color, #050505);
-            color: var(--default-font-color, #fff);
-            font-size: 200px;
-            text-align: center;
-            overflow: hidden;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            justify-content: center;
+        /* Tokens and the shared components (.ws shell, short hero, privacy
+           line, .cs-btn, .field, .dropzone) come from carino-ui.css. */
+        :root {
+            --tp-bracket: #ef4444;   /* [bracketed] cues in the script */
+            --tp-size: 120px;        /* script size; set from the rail */
         }
+        html, body { height: 100%; }
+        body { display: flex; flex-direction: column; overflow: hidden; }
+        .ws { flex: 1; min-height: 0; }
+        .ws-rail .field { min-width: 0; }
+        .ws-rail .field label { display: flex; justify-content: space-between; }
+        .ws-rail .field output { font-family: var(--mono); color: var(--text-sec); }
+        .ws-rail input[type="range"] { width: 100%; accent-color: var(--accent); }
+        .tp-input { padding: 14px; font-size: var(--fs-sm); }
+        .tp-input .dz-hint { margin-top: 4px; }
+        .tp-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        input[type="file"] { display: none; }
+        /* Phones: the ☰ alone, so the brand keeps its room. */
+        @media (max-width: 640px) { .ws-toggle-lbl { display: none; } }
+
+        /* ---- the prompter: the pane is the stage ---- */
+        .tp-pane { position: relative; padding: 0; overflow: hidden; display: flex; }
         #teleprompter {
-            width: 83%;
-            max-height: 90vh;
-            font-family: 'Red Hat Display';
+            flex: 1; min-width: 0;
+            font-family: var(--display);
+            font-size: var(--tp-size);
+            line-height: 1.2;
+            text-align: center;
             overflow-y: auto;
             white-space: pre-wrap;
-            padding: 20px;
             word-wrap: break-word;
-            scrollbar-color: var(--scrollbar-color, #666) var(--background-color, #050505);
-            scrollbar-width: thin;
+            padding: 40vh 8% 60vh;
+            outline: none;
             transition: transform 0.3s;
         }
-        #teleprompter::-webkit-scrollbar {
-            width: 10px;
-        }
-        #teleprompter::-webkit-scrollbar-thumb {
-            background-color: var(--scrollbar-color, #666);
-            border-radius: 5px;
-        }
-        #teleprompter::-webkit-scrollbar-track {
-            background-color: var(--background-color, #050505);
-        }
-        .bracket-text {
-            color: var(--bracket-text-color, #ef4444);
-        }
-        /* The fleet's legal notice: a quiet text link at the end of the controls. */
-        .controls .legal { align-self: center; font-size: 12px; color: #8a8a8a; text-decoration: none; padding: 0 6px; }
-        .controls .legal:hover { color: #eab308; }
-        .controls {
-            font-family: 'IBM Plex Sans';
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            padding: 3px;
-            background: rgba(5, 5, 5, 0.8);
-        }
-        button, label {
-            font-size: 18px;
-            padding: 10px 20px;
-            border: 1px solid #262626;
-            border-radius: 5px;
-            background: #0d0d0d;
-            color: #fff;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        button:hover, label:hover {
-            border-color: #eab308;
-            color: #eab308;
-            background: rgba(234, 179, 8, 0.05);
-        }
-        input[type="file"] {
-            display: none;
-        }
+        #teleprompter.mirrored { transform: scaleX(-1); }
+        .bracket-text { color: var(--tp-bracket); }
         .marker {
-            position: fixed;
+            position: absolute;
             width: 0;
             height: 0;
             border-style: solid;
-            border-width: 80px 160px 80px 0;
-            border-color: transparent rgb(255, 255, 255) transparent transparent;
-            display: none;
+            pointer-events: none;
+        }
+        .marker[hidden] { display: none; }
+        @media (max-width: 640px) {
+            #teleprompter { padding: 30vh 5% 60vh; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #teleprompter { transition: none; }
         }
     </style>
 </head>
 <body>
-    <div id="teleprompter" role="main" contenteditable="true"><br><br><br><br>Welcome to the <span class="bracket-text">[Teleprompter]</span>! Load a text file or paste text to start. This code is <span class="bracket-text">[free]</span> and <span class="bracket-text">[open source]</span>.<br><br><br><br></div>
-    <div class="controls">
-        <label for="fileInput">Load File</label>
-        <input type="file" id="fileInput">
-        <button onclick="toggleScroll()" role="button" tabindex="0">Play/Pause</button>
-        <button onclick="increaseSpeed()">+</button>
-        <button onclick="decreaseSpeed()">-</button>
-        <button onclick="increaseFontSize()">A+</button>
-        <button onclick="decreaseFontSize()">A-</button>
-        <button onclick="resetTeleprompter()">Reset</button>
-        <button onclick="toggleMarker()">Marker</button>
-        <button onclick="toggleMirror()">Mirror</button>
-        <button onclick="toggleFont()">Font</button>
-        <a class="legal" href="https://carino.systems/legal.html">Legal</a>
+    <div class="tp-actions" data-carino-actions>
+        <button type="button" class="cs-btn ws-toggle" data-ws-toggle data-priority="1" aria-label="Settings">☰ <span class="ws-toggle-lbl" data-i18n>Settings</span></button>
+        <button type="button" class="cs-btn" id="resetBtn" onclick="resetTeleprompter()" data-i18n>Back to top</button>
+        <button type="button" class="cs-btn" id="playBtn" data-priority="1" aria-pressed="false" onclick="toggleScroll()" data-i18n>Play</button>
     </div>
-    <div id="marker" class="marker" style="display: none;"></div>
+
+    <div class="ws" role="main">
+        <aside class="ws-rail" aria-label="Settings">
+            <div class="short-hero rail-head">
+                <img class="mark" src="logo.svg" alt="" width="32" height="32">
+                <div><h1>Teleprompter</h1><p class="sh-lede" data-i18n>Paste your script or open a file, then press Play and read.</p></div>
+            </div>
+
+            <div class="t-label" data-i18n>Script</div>
+            <div class="dropzone tp-input" id="dropZone" role="button" tabindex="0">
+                <div><span data-i18n>Drop a text file here or</span> <strong data-i18n>browse</strong></div>
+                <div class="dz-hint" data-i18n>Or paste into the prompter</div>
+            </div>
+            <input type="file" id="fileInput" accept=".txt,.md,text/plain">
+
+            <div class="t-label" data-i18n>Reading</div>
+            <div class="field">
+                <label for="speed"><span data-i18n>Speed</span> <output id="speedVal"></output></label>
+                <input type="range" id="speed" min="1" max="12" step="1">
+            </div>
+            <div class="field">
+                <label for="size"><span data-i18n>Text size</span> <output id="sizeVal"></output></label>
+                <input type="range" id="size" min="24" max="300" step="2">
+            </div>
+            <div class="field">
+                <label for="fontSel" data-i18n>Font</label>
+                <select class="select" id="fontSel">
+                    <option value="display">Red Hat Display</option>
+                    <option value="sans">IBM Plex Sans</option>
+                    <option value="mono">IBM Plex Mono</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="markerSel" data-i18n>Reading marker</label>
+                <select class="select" id="markerSel">
+                    <option value="0" data-i18n>Off</option>
+                    <option value="1" data-i18n>Top left</option>
+                    <option value="2" data-i18n>Top right</option>
+                    <option value="3" data-i18n>Middle left</option>
+                    <option value="4" data-i18n>Middle right</option>
+                </select>
+            </div>
+            <label class="check"><input type="checkbox" id="mirror"> <span data-i18n>Mirror, for teleprompter glass</span></label>
+
+            <div class="ws-rail-foot">
+                <p class="privacy-line" data-i18n>Runs in your browser. Nothing you add here is uploaded.</p>
+            </div>
+        </aside>
+
+        <div class="ws-pane tp-pane">
+            <div id="teleprompter" contenteditable="true" spellcheck="false" aria-label="Script"></div>
+            <div id="marker" class="marker" hidden></div>
+        </div>
+    </div>
+
     <script>
+        // Nothing moves until Play is pressed: no auto-scroll on load.
+        const tp = document.getElementById('teleprompter');
+        const tt = k => (typeof t === 'function' ? t(k) : k);
         let scrolling = false;
-        let speed = getScrollSpeed(); // Set speed based on the browser
+        let speed = 3;
+        let carry = 0;   // sub-pixel scroll left over between frames
 
-        function getScrollSpeed() {
-            const userAgent = navigator.userAgent;
-        
-            if (userAgent.includes("Firefox")) {
-                return 4; // Speed for Firefox
-            } else if (userAgent.includes("Chrome") && !userAgent.includes("Edg")) {
-                return 4; // Speed for Chrome (not Edge)
-            } else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) {
-                return 4; // Speed for Safari (WebKit)
-            } else if (userAgent.includes("Edge")) {
-                return 2; // Speed for Edge
+        // The sample, as a script: [bracketed] words are cues and show in red.
+        const SAMPLE = 'Sample script.\n\nPaste your own text here, or open a text file from the settings. ' +
+            'Words in [brackets] are cues for you, shown in red. Press [Play] to start scrolling ' +
+            'and again to pause. This tool is [free] and [open source].';
+
+        // Text in, as text nodes: [bracketed] runs become red spans, built with
+        // the DOM rather than innerHTML, so a pasted script can never be markup.
+        let isSample = false;   // still showing the sample: re-translate it on a language change
+        function setScript(text, sample) {
+            isSample = !!sample;
+            tp.textContent = '';
+            const re = /\[(.*?)\]/g;
+            let last = 0, m;
+            while ((m = re.exec(text))) {
+                if (m.index > last) tp.appendChild(document.createTextNode(text.slice(last, m.index)));
+                const span = document.createElement('span');
+                span.className = 'bracket-text';
+                span.textContent = m[0];
+                tp.appendChild(span);
+                last = re.lastIndex;
             }
-            return 2; // Default speed for other browsers
-        }
-        let markerPositions = [
-            null,
-            { top: "5%", left: "10px", borderColor: "transparent rgb(255, 255, 255) transparent transparent", transform: "rotate(0deg)" }, // Top-left
-            { top: "5%", right: "10px", borderColor: "transparent transparent transparent rgb(255, 255, 255)", transform: "rotate(180deg)" }, // Top-right
-            { top: "40%", left: "10px", borderColor: "transparent rgb(255, 255, 255) transparent transparent", transform: "rotate(0deg)" }, // Middle-left
-            { top: "40%", right: "10px", borderColor: "transparent transparent transparent rgb(255, 255, 255)", transform: "rotate(180deg)" } // Middle-right
-        ];
-        let markerIndex = 0;
-        let mirrored = false;
-        let fonts = ["'IBM Plex Sans'", "'Red Hat Display'", "'IBM Plex Mono'"];
-        let fontIndex = 1; // Default to 'Red Hat Display'
-
-        function toggleFont() {
-            fontIndex = (fontIndex + 1) % fonts.length;
-            document.getElementById('teleprompter').style.fontFamily = fonts[fontIndex];
-        }
-
-        let scrollStep = () => {
-            if (scrolling) {
-                document.getElementById('teleprompter').scrollTop += speed;
-                requestAnimationFrame(scrollStep);
-            }
-        };
-        function toggleScroll() {
-            scrolling = !scrolling;
-            if (scrolling) requestAnimationFrame(scrollStep);
-        }
-        
-        function increaseSpeed() {
-            speed += 1;
-        }
-        
-        function decreaseSpeed() {
-            if (speed > 1) speed -= 1;
-        }
-        
-        function increaseFontSize() {
-            let tp = document.getElementById('teleprompter');
-            let size = window.getComputedStyle(tp).fontSize;
-            tp.style.fontSize = (parseInt(size) + 2) + 'px';
-        }
-        
-        function decreaseFontSize() {
-            let tp = document.getElementById('teleprompter');
-            let size = window.getComputedStyle(tp).fontSize;
-            tp.style.fontSize = (parseInt(size) - 2) + 'px';
-        }
-        
-        function resetTeleprompter() {
-            let tp = document.getElementById('teleprompter');
+            if (last < text.length) tp.appendChild(document.createTextNode(text.slice(last)));
             tp.scrollTop = 0;
         }
 
-        window.onload = function() {
-            toggleMarker();
+        function scrollStep() {
+            if (!scrolling) return;
+            carry += speed * 0.5;
+            const px = Math.floor(carry);
+            carry -= px;
+            tp.scrollTop += px;
+            if (tp.scrollTop + tp.clientHeight >= tp.scrollHeight - 1) { setPlaying(false); return; }
+            requestAnimationFrame(scrollStep);
+        }
+        function setPlaying(on) {
+            scrolling = on;
+            const b = document.getElementById('playBtn');
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            b.dataset.i18nKey = on ? 'Pause' : 'Play';
+            b.textContent = tt(b.dataset.i18nKey);
+            if (on) requestAnimationFrame(scrollStep);
+        }
+        function toggleScroll() { setPlaying(!scrolling); }
+        function resetTeleprompter() { tp.scrollTop = 0; }
+
+        // ---- settings ----
+        const FONTS = { display: 'var(--display)', sans: 'var(--sans)', mono: 'var(--mono)' };
+        const speedIn = document.getElementById('speed');
+        const sizeIn = document.getElementById('size');
+        function applySpeed() { speed = +speedIn.value; document.getElementById('speedVal').textContent = speed; }
+        function applySize() {
+            document.documentElement.style.setProperty('--tp-size', sizeIn.value + 'px');
+            document.getElementById('sizeVal').textContent = sizeIn.value + ' px';
+        }
+        speedIn.addEventListener('input', applySpeed);
+        sizeIn.addEventListener('input', applySize);
+        document.getElementById('fontSel').addEventListener('change', e => { tp.style.fontFamily = FONTS[e.target.value]; });
+        document.getElementById('mirror').addEventListener('change', e => { tp.classList.toggle('mirrored', e.target.checked); });
+
+        // The marker: a white arrow at the reading line, pointing at the text.
+        const MARKERS = [null,
+            { top: '5%', side: 'left' }, { top: '5%', side: 'right' },
+            { top: '40%', side: 'left' }, { top: '40%', side: 'right' }];
+        document.getElementById('markerSel').addEventListener('change', e => {
+            const m = document.getElementById('marker');
+            const pos = MARKERS[+e.target.value];
+            m.hidden = !pos;
+            if (!pos) return;
+            const left = pos.side === 'left';
+            Object.assign(m.style, {
+                top: pos.top, left: left ? '10px' : 'auto', right: left ? 'auto' : '10px',
+                borderWidth: left ? '40px 0 40px 80px' : '40px 80px 40px 0',
+                borderColor: left ? 'transparent transparent transparent #fff' : 'transparent #fff transparent transparent',
+            });
+        });
+
+        // ---- script in: file, drop or paste ----
+        function readFile(file) {
+            if (!file) return;
+            file.text().then(setScript);
+        }
+        const zone = document.getElementById('dropZone');
+        const fileIn = document.getElementById('fileInput');
+        zone.addEventListener('click', () => fileIn.click());
+        zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileIn.click(); } });
+        fileIn.addEventListener('change', () => { readFile(fileIn.files[0]); fileIn.value = ''; });
+        ['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
+        ['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, () => zone.classList.remove('dragover')));
+        document.addEventListener('drop', e => {
+            e.preventDefault();
+            if (e.dataTransfer && e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]);
+        });
+        // A paste into the prompter replaces the script (as plain text); pastes
+        // into the settings fields stay ordinary pastes.
+        tp.addEventListener('paste', e => {
+            e.preventDefault();
+            setScript(e.clipboardData.getData('text'));
+        });
+
+        // Space plays and pauses, unless you are typing in the script or a field.
+        document.addEventListener('keydown', e => {
+            if (e.key !== ' ' || e.target === tp || e.target.closest('input, select, textarea, button')) return;
+            e.preventDefault();
             toggleScroll();
-        };
-
-        function toggleMarker() {
-            markerIndex = (markerIndex + 1) % markerPositions.length;
-            let marker = document.getElementById('marker');
-            let pos = markerPositions[markerIndex];
-
-            if (pos) {
-                Object.assign(marker.style, {
-                    display: "block",
-                    top: pos.top,
-                    left: pos.left || "auto",
-                    right: pos.right || "auto",
-                    borderWidth: pos.right ? "80px 160px 80px 0" : "80px 0 80px 160px",
-                    borderColor: pos.right ? "transparent rgb(255, 255, 255) transparent transparent"
-                                            : "transparent transparent transparent rgb(255, 255, 255)"
-                });
-            } else {
-                marker.style.display = "none";
-            }
-        }
-        
-        function toggleMirror() {
-            let tp = document.getElementById('teleprompter');
-            mirrored = !mirrored;
-            tp.style.transform = mirrored ? 'scaleX(-1)' : 'scaleX(1)';
-        }
-        
-        document.getElementById('fileInput').addEventListener('change', function(event) {
-            let reader = new FileReader();
-            reader.onload = function() {
-                let text = reader.result.replace(/\[(.*?)\]/g, '<span class="bracket-text">[$1]</span>');
-                let tp = document.getElementById('teleprompter');
-                tp.innerHTML = text;
-                tp.scrollTop = 0;
-            };
-            reader.readAsText(event.target.files[0]);
         });
 
-        document.addEventListener('paste', function(event) {
-            event.preventDefault();
-            let text = event.clipboardData.getData('text').replace(/\[(.*?)\]/g, '<span class="bracket-text">[$1]</span>');
-            let tp = document.getElementById('teleprompter');
-            tp.innerHTML = text;
-            tp.scrollTop = 0;
-        });
+        // Start: a size that fits the screen, the sample script, everything still.
+        sizeIn.value = Math.round(Math.max(40, Math.min(200, tp.clientWidth / 8)) / 2) * 2;
+        speedIn.value = speed;
+        applySpeed(); applySize();
+        setScript(tt(SAMPLE), true);
+        tp.addEventListener('input', () => { isSample = false; });
+        // i18n.js calls this after each language pass.
+        function repaintTp() { if (isSample) setScript(tt(SAMPLE), true); }
     </script>
+    <script src="carino-navbar.js" data-app="Teleprompter" data-repo="Teleprompter" defer></script>
+    <script src="carino-ui.js" defer></script>
+    <script src="carino-lang.js" defer></script>
+    <script src="i18n.js" defer></script>
 </body>
 </html>
