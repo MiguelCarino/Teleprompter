@@ -8,6 +8,7 @@ const SAMPLE_EN = 'Sample script.\n\nPaste your own text here, or open a text fi
 
 const I18N = {
     es: {
+        "More": "Más",
         'Late shift.': 'Turno nocturno.',
         'Good morning.': 'Buenos días.',
         'Good afternoon.': 'Buenas tardes.',
@@ -38,6 +39,7 @@ const I18N = {
         [SAMPLE_EN]: 'Guion de ejemplo.\n\nPega aquí tu propio texto o abre un archivo de texto desde los ajustes. Las palabras entre [corchetes] son indicaciones para ti y se muestran en rojo. Pulsa [Reproducir] para empezar a desplazar y otra vez para pausar. Esta herramienta es [gratuita] y de [código abierto].',
     },
     'pt-BR': {
+        "More": "Mais",
         'Late shift.': 'Turno da noite.',
         'Good morning.': 'Bom dia.',
         'Good afternoon.': 'Boa tarde.',
@@ -68,6 +70,7 @@ const I18N = {
         [SAMPLE_EN]: 'Roteiro de exemplo.\n\nCole aqui o seu texto ou abra um arquivo de texto nos ajustes. Palavras entre [colchetes] são deixas para você e aparecem em vermelho. Aperte [Reproduzir] para começar a rolar e de novo para pausar. Esta ferramenta é [gratuita] e de [código aberto].',
     },
     ja: {
+        "More": "その他",
         'Late shift.': '遅番ですね。',
         'Good morning.': 'おはようございます。',
         'Good afternoon.': 'こんにちは。',
@@ -98,6 +101,7 @@ const I18N = {
         [SAMPLE_EN]: 'サンプル原稿です。\n\nここに自分の原稿を貼り付けるか、設定からテキストファイルを開いてください。[角かっこ]で囲んだ語は自分向けの合図で、赤で表示されます。[再生]を押すとスクロールが始まり、もう一度押すと一時停止します。このツールは[無料]で[オープンソース]です。',
     },
     ru: {
+        "More": "Ещё",
         'Late shift.': 'Поздняя смена.',
         'Good morning.': 'Доброе утро.',
         'Good afternoon.': 'Добрый день.',
