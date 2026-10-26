@@ -9,260 +9,238 @@
     <link rel="canonical" href="https://teleprompter.carino.systems/">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Carino Systems">
-    <meta property="og:title" content="TelePrompter">
+    <meta property="og:title" content="Teleprompter">
     <meta property="og:description" content="A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.">
     <meta property="og:url" content="https://teleprompter.carino.systems/">
     <meta property="og:image" content="https://teleprompter.carino.systems/og.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="TelePrompter">
+    <meta property="og:image:alt" content="Teleprompter">
     <meta name="twitter:card" content="summary_large_image">
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "TelePrompter", "url": "https://teleprompter.carino.systems/", "description": "A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.", "operatingSystem": "Any (runs in a web browser)", "isAccessibleForFree": true, "author": {"@type": "Person", "name": "Miguel Cariño", "url": "https://carino.systems/"}}</script>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Teleprompter", "url": "https://teleprompter.carino.systems/", "description": "A free online teleprompter: paste your script, set the speed and read, with mirror mode for teleprompter glass.", "operatingSystem": "Any (runs in a web browser)", "isAccessibleForFree": true, "author": {"@type": "Person", "name": "Miguel Cariño", "url": "https://carino.systems/"}}</script>
     <!-- /carino:head -->
     <link rel="icon" href="logo.webp">
     <link rel="stylesheet" href="fonts/carino-fonts.css">
     <link rel="stylesheet" href="carino-ui.css">
     <style>
         /* Tokens and the shared components (.ws shell, short hero, privacy
-           line, .cs-btn, .field, .dropzone) come from carino-ui.css. */
-        :root {
-            --tp-bracket: #ef4444;   /* [bracketed] cues in the script */
-            --tp-size: 120px;        /* script size; set from the rail */
-        }
+           line, .cs-btn, .field, .dropzone, .kbd) come from carino-ui.css.
+           The prompter surface itself (#screen) is styled by
+           prompter/render.js: white on black, no chrome. */
         html, body { height: 100%; }
         body { display: flex; flex-direction: column; overflow: hidden; }
         .ws { flex: 1; min-height: 0; }
-        .ws-rail .field { min-width: 0; }
-        .ws-rail .field label { display: flex; justify-content: space-between; }
-        .ws-rail .field output { font-family: var(--mono); color: var(--text-sec); }
+        .ws-rail .field label { display: flex; justify-content: space-between; gap: 8px; }
+        .ws-rail .field output { font-family: var(--mono); color: var(--text-sec); text-transform: none; letter-spacing: 0; text-align: right; }
         .ws-rail input[type="range"] { width: 100%; accent-color: var(--accent); }
-        .tp-input { padding: 14px; font-size: var(--fs-sm); }
-        .tp-input .dz-hint { margin-top: 4px; }
-        .tp-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tp-file { padding: 14px; font-size: var(--fs-sm); }
+        .tp-file .dz-hint { margin-top: 4px; }
+        .tp-checks { display: flex; flex-direction: column; gap: 10px; }
+        .tp-keys { font-size: var(--fs-label); }
         input[type="file"] { display: none; }
-        /* Phones: the ☰ alone, so the brand keeps its room. */
         @media (max-width: 640px) { .ws-toggle-lbl { display: none; } }
 
-        /* ---- the prompter: the pane is the stage ---- */
-        .tp-pane { position: relative; padding: 0; overflow: hidden; display: flex; }
-        #teleprompter {
-            flex: 1; min-width: 0;
-            font-family: var(--display);
-            font-size: var(--tp-size);
-            line-height: 1.2;
-            text-align: center;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            padding: 40vh 8% 60vh;
-            outline: none;
-            transition: transform 0.3s;
+        /* ---- control pane: editor beside the preview ---- */
+        .tp-pane { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; gap: 20px; align-content: start; }
+        .tp-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+        .tp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .tp-hint { font-size: var(--fs-sm); color: var(--text-muted); }
+        #editor { font-family: var(--sans); font-size: var(--fs-body); line-height: 1.6; min-height: 40dvh; resize: vertical; }
+        .tp-frame {
+            --ar: 1.6;
+            position: relative; overflow: hidden; background: #000; flex: none;
+            width: min(100%, calc(62dvh * var(--ar))); aspect-ratio: var(--ar); align-self: center;
+            outline: 1px solid var(--border); border-radius: 8px;   /* outline: the inside stays exactly the scaled output */
         }
-        #teleprompter.mirrored { transform: scaleX(-1); }
-        .bracket-text { color: var(--tp-bracket); }
-        .marker {
-            position: absolute;
-            width: 0;
-            height: 0;
-            border-style: solid;
-            pointer-events: none;
+        .tp-frame > #screen { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        .tp-transport { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .tp-readout { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-sec); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+        .tp-state { font-family: var(--mono); font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-sec); }
+        .tp-state[data-state="playing"], .tp-state[data-state="countdown"] { color: var(--ok); }
+        .tp-state[data-state="ended"] { color: var(--accent); }
+        .tp-note { font-family: var(--mono); font-size: var(--fs-label); color: var(--warn); min-height: 1em; margin: 0; }
+        /* a phone's tall window would make the preview taller than the screen */
+        @media (max-width: 640px) { .tp-frame { width: min(100%, calc(42dvh * var(--ar))); } }
+        @media (min-width: 1200px) {
+            .tp-frame { align-self: flex-start; }
+            .tp-pane { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: minmax(0, 1fr); height: 100%; align-content: stretch; }
+            .tp-col.tp-edit { height: 100%; }
+            #editor { flex: 1; min-height: 0; resize: none; }
         }
-        .marker[hidden] { display: none; }
+
+        /* ---- Present here: the window is the output ---- */
+        body.present #carinoNav, body.present .ws { display: none !important; }
+        body.present > #screen { position: fixed; inset: 0; z-index: 10; }
+        body:not(.present) > #screen, body:not(.present) #hud { display: none; }
+        body.present.idle, body.present.idle * { cursor: none !important; }
+
+        /* the HUD: thin, at the bottom, gone after 2 s without input */
+        .tp-hud {
+            position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20;
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; padding: 6px 8px;
+            max-width: calc(100% - 32px);
+            background: rgba(5,5,5,0.86); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+            border: 1px solid var(--border); border-radius: 10px;
+            font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-sec); font-variant-numeric: tabular-nums;
+            opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+        }
+        .tp-hud.show { opacity: 1; visibility: visible; transition: opacity 0.2s ease; }
+        .tp-hud .tp-hud-read { display: flex; gap: 12px; padding: 0 4px; white-space: nowrap; }
+        .tp-hud .tp-hud-hint { flex-basis: 100%; text-align: center; font-size: var(--fs-label); color: var(--text-muted); }
         @media (max-width: 640px) {
-            #teleprompter { padding: 30vh 5% 60vh; }
+            .tp-hud { left: 16px; right: 16px; transform: none; max-width: none; }
+            .tp-hud .tp-hud-read { flex-basis: 100%; justify-content: center; }
         }
         @media (prefers-reduced-motion: reduce) {
-            #teleprompter { transition: none; }
+            .tp-hud, .tp-hud.show { transition: none; }
         }
     </style>
 </head>
-<body>
+<body class="present">
     <div class="tp-actions" data-carino-actions>
-        <button type="button" class="cs-btn ws-toggle" data-ws-toggle data-priority="1" aria-label="Settings">☰ <span class="ws-toggle-lbl" data-i18n>Settings</span></button>
-        <button type="button" class="cs-btn" id="resetBtn" onclick="resetTeleprompter()" data-i18n>Back to top</button>
-        <button type="button" class="cs-btn" id="playBtn" data-priority="1" aria-pressed="false" onclick="toggleScroll()" data-i18n>Play</button>
+        <button type="button" class="cs-btn ws-toggle" data-ws-toggle data-priority="1" aria-label="Settings" data-i18n-aria-label="Settings">☰ <span class="ws-toggle-lbl" data-i18n>Settings</span></button>
+        <button type="button" class="cs-btn" id="playBtn" aria-pressed="false" data-i18n>Play</button>
+        <button type="button" class="cs-btn primary" id="presentBtn" data-priority="1" data-i18n>Present</button>
     </div>
 
     <div class="ws" role="main">
-        <aside class="ws-rail" aria-label="Settings">
+        <aside class="ws-rail" aria-label="Settings" data-i18n-aria-label="Settings">
             <div class="short-hero rail-head">
                 <img class="mark" src="logo.svg" alt="" width="32" height="32">
-                <div><h1>Teleprompter</h1><p class="sh-lede" data-i18n>Paste your script or open a file, then press Play and read.</p></div>
+                <div><h1>Teleprompter</h1><p class="sh-lede" data-i18n>Write or paste your script, then press Present and read.</p></div>
             </div>
 
-            <div class="t-label" data-i18n>Script</div>
-            <div class="dropzone tp-input" id="dropZone" role="button" tabindex="0">
+            <div class="t-label" data-i18n>Replace script</div>
+            <div class="dropzone tp-file" id="dropZone" role="button" tabindex="0">
                 <div><span data-i18n>Drop a text file here or</span> <strong data-i18n>browse</strong></div>
-                <div class="dz-hint" data-i18n>Or paste into the prompter</div>
+                <div class="dz-hint" data-i18n>It replaces the whole script</div>
             </div>
-            <input type="file" id="fileInput" accept=".txt,.md,text/plain">
+            <input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown">
+            <p class="tp-note" id="fileNote" role="status"></p>
 
             <div class="t-label" data-i18n>Reading</div>
             <div class="field">
-                <label for="speed"><span data-i18n>Speed</span> <output id="speedVal"></output></label>
-                <input type="range" id="speed" min="1" max="12" step="1">
+                <label for="speed"><span data-i18n>Speed</span> <output id="speedVal" for="speed"></output></label>
+                <input type="range" id="speed" min="0.1" max="3" step="0.05">
             </div>
             <div class="field">
-                <label for="size"><span data-i18n>Text size</span> <output id="sizeVal"></output></label>
+                <label for="countdown" data-i18n>Countdown</label>
+                <select class="select" id="countdown">
+                    <option value="0" data-i18n>Off</option>
+                    <option value="3" data-i18n>3 s</option>
+                    <option value="5" data-i18n>5 s</option>
+                    <option value="10" data-i18n>10 s</option>
+                </select>
+            </div>
+
+            <div class="t-label" data-i18n>Display</div>
+            <div class="field">
+                <label for="size"><span data-i18n>Text size</span> <output id="sizeVal" for="size"></output></label>
                 <input type="range" id="size" min="24" max="300" step="2">
             </div>
             <div class="field">
-                <label for="fontSel" data-i18n>Font</label>
-                <select class="select" id="fontSel">
+                <label for="spacing"><span data-i18n>Line spacing</span> <output id="spacingVal" for="spacing"></output></label>
+                <input type="range" id="spacing" min="1" max="2" step="0.05">
+            </div>
+            <div class="field">
+                <label for="margin"><span data-i18n>Side margins</span> <output id="marginVal" for="margin"></output></label>
+                <input type="range" id="margin" min="0" max="30" step="1">
+            </div>
+            <div class="field">
+                <label for="font" data-i18n>Font</label>
+                <select class="select" id="font">
                     <option value="display">Red Hat Display</option>
                     <option value="sans">IBM Plex Sans</option>
                     <option value="mono">IBM Plex Mono</option>
                 </select>
             </div>
             <div class="field">
-                <label for="markerSel" data-i18n>Reading marker</label>
-                <select class="select" id="markerSel">
-                    <option value="0" data-i18n>Off</option>
-                    <option value="1" data-i18n>Top left</option>
-                    <option value="2" data-i18n>Top right</option>
-                    <option value="3" data-i18n>Middle left</option>
-                    <option value="4" data-i18n>Middle right</option>
+                <label for="linePos"><span data-i18n>Reading line</span> <output id="linePosVal" for="linePos"></output></label>
+                <input type="range" id="linePos" min="0" max="100" step="1">
+            </div>
+            <div class="field">
+                <label for="lineStyle" data-i18n>Reading line marker</label>
+                <select class="select" id="lineStyle">
+                    <option value="arrows" data-i18n>Arrows</option>
+                    <option value="line" data-i18n>Underline</option>
+                    <option value="band" data-i18n>Band</option>
+                    <option value="hidden" data-i18n>Hidden</option>
                 </select>
             </div>
-            <label class="check"><input type="checkbox" id="mirror"> <span data-i18n>Mirror, for teleprompter glass</span></label>
+            <div class="tp-checks">
+                <label class="check"><input type="checkbox" id="dim"> <span data-i18n>Dim text already read</span></label>
+                <label class="check"><input type="checkbox" id="mirror"> <span data-i18n>Mirror left to right</span></label>
+                <label class="check"><input type="checkbox" id="flip"> <span data-i18n>Flip upside down</span></label>
+            </div>
+
+            <div class="t-label" data-i18n>Keys</div>
+            <dl class="kbd-grid tp-keys">
+                <dt><span class="kbd" data-i18n>Space</span></dt><dd data-i18n>Play or pause</dd>
+                <dt><span class="kbd">↑</span> <span class="kbd">↓</span></dt><dd data-i18n>Faster or slower</dd>
+                <dt><span class="kbd">←</span> <span class="kbd">→</span></dt><dd data-i18n>A line back or forward</dd>
+                <dt><span class="kbd">PgUp</span> <span class="kbd">PgDn</span></dt><dd data-i18n>A paragraph back or forward</dd>
+                <dt><span class="kbd">Home</span></dt><dd data-i18n>Back to the top</dd>
+                <dt><span class="kbd">R</span></dt><dd data-i18n>Reverse</dd>
+                <dt><span class="kbd">F</span></dt><dd data-i18n>Full screen</dd>
+                <dt><span class="kbd">Esc</span></dt><dd data-i18n>Controls</dd>
+            </dl>
 
             <div class="ws-rail-foot">
-                <p class="privacy-line" data-i18n>Runs in your browser. Nothing you add here is uploaded.</p>
+                <p class="privacy-line" data-i18n>Saved in this browser only. Never uploaded.</p>
             </div>
         </aside>
 
         <div class="ws-pane tp-pane">
-            <div id="teleprompter" contenteditable="true" spellcheck="false" aria-label="Script"></div>
-            <div id="marker" class="marker" hidden></div>
+            <section class="tp-col tp-edit">
+                <div class="tp-head">
+                    <label class="t-label" for="editor" data-i18n>Script</label>
+                    <span class="tp-hint" data-i18n>Words in [brackets] are cues and show in red.</span>
+                </div>
+                <textarea id="editor" class="textarea" data-i18n-placeholder="Type or paste your script here."></textarea>
+            </section>
+            <section class="tp-col tp-view">
+                <div class="tp-head">
+                    <span class="t-label" data-i18n>Preview</span>
+                    <span class="tp-state" id="ctlState" role="status"></span>
+                </div>
+                <div class="tp-frame" id="frame"></div>
+                <div class="tp-transport">
+                    <button type="button" class="cs-btn" id="topBtn" data-i18n>Top</button>
+                    <button type="button" class="cs-btn" id="prevBtn" data-i18n>Back a paragraph</button>
+                    <button type="button" class="cs-btn" id="playBtn2" aria-pressed="false" data-i18n>Play</button>
+                    <button type="button" class="cs-btn" id="revBtn" aria-pressed="false" data-i18n>Reverse</button>
+                    <button type="button" class="cs-btn" id="nextBtn" data-i18n>Next paragraph</button>
+                </div>
+                <div class="tp-readout">
+                    <span id="ctlPos"></span><span id="ctlTime"></span><span id="ctlSpeed"></span>
+                </div>
+            </section>
         </div>
     </div>
 
-    <script>
-        // Nothing moves until Play is pressed: no auto-scroll on load.
-        const tp = document.getElementById('teleprompter');
-        const tt = k => (typeof t === 'function' ? t(k) : k);
-        let scrolling = false;
-        let speed = 3;
-        let carry = 0;   // sub-pixel scroll left over between frames
+    <!-- The prompter surface. Present here: it fills the window. Controls:
+         it moves into the preview frame, scaled down, so the preview is
+         exactly what the reader sees. -->
+    <div id="screen" role="region" aria-label="Prompter" data-i18n-aria-label="Prompter"></div>
 
-        // The sample, as a script: [bracketed] words are cues and show in red.
-        const SAMPLE = 'Sample script.\n\nPaste your own text here, or open a text file from the settings. ' +
-            'Words in [brackets] are cues for you, shown in red. Press [Play] to start scrolling ' +
-            'and again to pause. This tool is [free] and [open source].';
+    <div class="tp-hud" id="hud" role="toolbar" aria-label="Prompter controls" data-i18n-aria-label="Prompter controls">
+        <button type="button" class="cs-btn" id="hudPlay" data-i18n>Play</button>
+        <span class="tp-hud-read"><span id="hudPos"></span><span id="hudTime"></span><span id="hudSpeed"></span></span>
+        <button type="button" class="cs-btn" id="hudFs" data-i18n>Full screen</button>
+        <button type="button" class="cs-btn" id="hudCtl" data-i18n>Controls</button>
+        <span class="tp-hud-hint" data-i18n>Space plays and pauses. Esc opens the controls.</span>
+    </div>
 
-        // Text in, as text nodes: [bracketed] runs become red spans, built with
-        // the DOM rather than innerHTML, so a pasted script can never be markup.
-        let isSample = false;   // still showing the sample: re-translate it on a language change
-        function setScript(text, sample) {
-            isSample = !!sample;
-            tp.textContent = '';
-            const re = /\[(.*?)\]/g;
-            let last = 0, m;
-            while ((m = re.exec(text))) {
-                if (m.index > last) tp.appendChild(document.createTextNode(text.slice(last, m.index)));
-                const span = document.createElement('span');
-                span.className = 'bracket-text';
-                span.textContent = m[0];
-                tp.appendChild(span);
-                last = re.lastIndex;
-            }
-            if (last < text.length) tp.appendChild(document.createTextNode(text.slice(last)));
-            tp.scrollTop = 0;
-        }
-
-        function scrollStep() {
-            if (!scrolling) return;
-            carry += speed * 0.5;
-            const px = Math.floor(carry);
-            carry -= px;
-            tp.scrollTop += px;
-            if (tp.scrollTop + tp.clientHeight >= tp.scrollHeight - 1) { setPlaying(false); return; }
-            requestAnimationFrame(scrollStep);
-        }
-        function setPlaying(on) {
-            scrolling = on;
-            const b = document.getElementById('playBtn');
-            b.setAttribute('aria-pressed', on ? 'true' : 'false');
-            b.dataset.i18nKey = on ? 'Pause' : 'Play';
-            b.textContent = tt(b.dataset.i18nKey);
-            if (on) requestAnimationFrame(scrollStep);
-        }
-        function toggleScroll() { setPlaying(!scrolling); }
-        function resetTeleprompter() { tp.scrollTop = 0; }
-
-        // ---- settings ----
-        const FONTS = { display: 'var(--display)', sans: 'var(--sans)', mono: 'var(--mono)' };
-        const speedIn = document.getElementById('speed');
-        const sizeIn = document.getElementById('size');
-        function applySpeed() { speed = +speedIn.value; document.getElementById('speedVal').textContent = speed; }
-        function applySize() {
-            document.documentElement.style.setProperty('--tp-size', sizeIn.value + 'px');
-            document.getElementById('sizeVal').textContent = sizeIn.value + ' px';
-        }
-        speedIn.addEventListener('input', applySpeed);
-        sizeIn.addEventListener('input', applySize);
-        document.getElementById('fontSel').addEventListener('change', e => { tp.style.fontFamily = FONTS[e.target.value]; });
-        document.getElementById('mirror').addEventListener('change', e => { tp.classList.toggle('mirrored', e.target.checked); });
-
-        // The marker: a white arrow at the reading line, pointing at the text.
-        const MARKERS = [null,
-            { top: '5%', side: 'left' }, { top: '5%', side: 'right' },
-            { top: '40%', side: 'left' }, { top: '40%', side: 'right' }];
-        document.getElementById('markerSel').addEventListener('change', e => {
-            const m = document.getElementById('marker');
-            const pos = MARKERS[+e.target.value];
-            m.hidden = !pos;
-            if (!pos) return;
-            const left = pos.side === 'left';
-            Object.assign(m.style, {
-                top: pos.top, left: left ? '10px' : 'auto', right: left ? 'auto' : '10px',
-                borderWidth: left ? '40px 0 40px 80px' : '40px 80px 40px 0',
-                borderColor: left ? 'transparent transparent transparent #fff' : 'transparent #fff transparent transparent',
-            });
-        });
-
-        // ---- script in: file, drop or paste ----
-        function readFile(file) {
-            if (!file) return;
-            file.text().then(setScript);
-        }
-        const zone = document.getElementById('dropZone');
-        const fileIn = document.getElementById('fileInput');
-        zone.addEventListener('click', () => fileIn.click());
-        zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileIn.click(); } });
-        fileIn.addEventListener('change', () => { readFile(fileIn.files[0]); fileIn.value = ''; });
-        ['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
-        ['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, () => zone.classList.remove('dragover')));
-        document.addEventListener('drop', e => {
-            e.preventDefault();
-            if (e.dataTransfer && e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]);
-        });
-        // A paste into the prompter replaces the script (as plain text); pastes
-        // into the settings fields stay ordinary pastes.
-        tp.addEventListener('paste', e => {
-            e.preventDefault();
-            setScript(e.clipboardData.getData('text'));
-        });
-
-        // Space plays and pauses, unless you are typing in the script or a field.
-        document.addEventListener('keydown', e => {
-            if (e.key !== ' ' || e.target === tp || e.target.closest('input, select, textarea, button')) return;
-            e.preventDefault();
-            toggleScroll();
-        });
-
-        // Start: a size that fits the screen, the sample script, everything still.
-        sizeIn.value = Math.round(Math.max(40, Math.min(200, tp.clientWidth / 8)) / 2) * 2;
-        speedIn.value = speed;
-        applySpeed(); applySize();
-        setScript(tt(SAMPLE), true);
-        tp.addEventListener('input', () => { isSample = false; });
-        // i18n.js calls this after each language pass.
-        function repaintTp() { if (isSample) setScript(tt(SAMPLE), true); }
-    </script>
+    <script src="prompter/model.js"></script>
+    <script src="prompter/render.js"></script>
+    <script src="prompter/motion.js"></script>
+    <script src="prompter/player.js"></script>
+    <script src="prompter/input.js"></script>
     <script src="carino-navbar.js" data-app="Teleprompter" data-repo="Teleprompter" defer></script>
     <script src="carino-ui.js" defer></script>
     <script src="carino-lang.js" defer></script>
     <script src="i18n.js" defer></script>
+    <!-- after i18n.js, so the sample script starts in the page's language -->
+    <script src="prompter/app.js" defer></script>
 </body>
 </html>
