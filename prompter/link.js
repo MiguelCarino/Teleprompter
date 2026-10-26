@@ -19,10 +19,10 @@
      lead     control → all     who drives the scroll now, and where it was
      cmd      control → lead    transport: toggle, top, nudge, paragraph, reverse, speed…
      key      output → control  a key pressed in an output (the control routes it)
-     pos      lead → all        { anchor, vel, sl, playing, dir, ended, countdown, … }
+     pos      lead → all        { loc, anchor, vel, playing, dir, ended, countdown, … }
+                                loc = where in its paragraph (render.js locate)
      identify control → output  show the output's number for a moment
 
-   Pure helpers (followTarget) are here too, so node tests reach them.
    Classic script: window.TP.link in a page, module.exports in node. */
 (function (root, factory) {
     var api = factory();
@@ -59,21 +59,8 @@
         };
     }
 
-    // Where a follower should be now, from the lead's last `pos`.
-    // The lead counts in its own line-heights; a follower with another
-    // text size wraps differently, so the lead's velocity is scaled by the
-    // ratio of the two scroll lengths (sl, in lines) and converted to the
-    // follower's pixels. y0 is the follower's y for the lead's anchor.
-    //   f = { y0, lh, sl, top, end }   (the follower's own layout)
-    function followTarget(pos, f, nowWall) {
-        var dt = Math.max(0, Math.min(2, (nowWall - pos.t) / 1000));
-        var ratio = pos.sl > 0 && f.sl > 0 ? f.sl / pos.sl : 1;
-        var y = f.y0 + (pos.vel || 0) * f.lh * ratio * dt;
-        return y < f.top ? f.top : y > f.end ? f.end : y;
-    }
-
     // A short id for a new output window.
     function newId(n, rnd) { return 'o' + n + '-' + Math.floor(rnd * 1e6).toString(36); }
 
-    return { NAME: NAME, V: V, supported: supported, open: open, followTarget: followTarget, newId: newId };
+    return { NAME: NAME, V: V, supported: supported, open: open, newId: newId };
 });

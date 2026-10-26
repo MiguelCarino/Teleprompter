@@ -175,6 +175,44 @@ const FAKE_SCREENS = () => {
         const a1 = await out.evaluate(() => TP.out.renderer.anchor()), a2 = await out2.evaluate(() => TP.out.renderer.anchor());
         ok('second output on the same words', Math.abs(a1.offset - a2.offset) <= 150, { a1, a2 });
 
+        // ---- a portrait monitor wraps more, and must still glide: no leap
+        // at paragraph ends (it once followed by character and skipped its
+        // extra lines whenever the lead reached a paragraph's end) ----
+        await out2.setViewportSize({ width: 540, height: 960 });
+        await page.locator('#sameSize').check();
+        await page.evaluate(() => {
+            const z = document.getElementById('size'); z.value = 40; z.dispatchEvent(new Event('input'));
+            const s = document.getElementById('speed'); s.value = 3; s.dispatchEvent(new Event('input'));
+        });
+        await wait(800);
+        const glide = await out2.evaluate(() => new Promise((done) => {
+            const r = TP.out.renderer, ys = [];
+            const t0 = performance.now();
+            (function f(t) {
+                ys.push(r.y());
+                if (t - t0 < 8000) requestAnimationFrame(f);
+                else {
+                    // a leap shows as a surge: some 250 ms covering far more than
+                    // the usual 250 ms (the follower eases gaps over 150 ms, so a
+                    // leap is a fast slide rather than a single-frame jump)
+                    let max = 0;
+                    for (let i = 1; i < ys.length; i++) max = Math.max(max, Math.abs(ys[i] - ys[i - 1]));
+                    const w = 15, spans = [];
+                    for (let i = w; i < ys.length; i += 1) spans.push(ys[i] - ys[i - w]);
+                    const sorted = spans.slice().sort((x, y) => x - y), median = sorted[sorted.length >> 1];
+                    var surge = sorted[sorted.length - 1] / median;
+                    const a = ys[0], b = ys[ys.length - 1];
+                    const crossed = r.paraYs().filter((p) => p > a && p <= b).length;
+                    done({ max, surge, median, lh: r.lineHeight(), frames: ys.length, crossed, lines: r.lineCount() });
+                }
+            })(t0);
+        }));
+        ok('portrait follower crossed paragraphs', glide.crossed >= 2, glide);
+        // even pace: no 250 ms runs much faster than the usual 250 ms, and no
+        // single frame steps more than twice the usual frame step
+        ok('portrait follower never leaps (steady pace)', glide.surge < 1.35 && glide.max < 2 * glide.median / 15, glide);
+        await page.evaluate(() => { const s = document.getElementById('speed'); s.value = 0.6; s.dispatchEvent(new Event('input')); });
+
         // ---- the lead closes: the next output takes over and keeps going ----
         await out.close();
         await wait(1500);

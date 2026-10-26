@@ -4,8 +4,10 @@
    has a renderer, a motion and a player. Exactly one of them is the LEAD
    (§4.3): its player runs the motion and it broadcasts `pos` messages.
    Every other window FOLLOWS: it does not run its own motion, it puts the
-   lead's anchor on its own reading line and extrapolates with the lead's
-   velocity between messages, so it moves every frame, not every message.
+   lead's place on its own reading line — by position inside the paragraph
+   (render.js locate/place), not by character, so a narrower screen that
+   wraps more never leaps — and extrapolates with the lead's velocity
+   between messages, so it moves every frame, not every message.
    A correction (a nudge, a seek, a late message) is not a jump: the gap
    between where the follower is and where it should be decays over about
    150 ms. A gap of more than a few lines (Home, a paragraph jump) snaps.
@@ -26,13 +28,6 @@
 })(typeof self !== 'undefined' ? self : null, function () {
     'use strict';
 
-    var followTarget = (typeof module === 'object' && module.exports && typeof require === 'function')
-        ? require('./link.js').followTarget : null;
-    function target(pos, f, now) {
-        var ft = followTarget || (self.TP && self.TP.link && self.TP.link.followTarget);
-        return ft(pos, f, now);
-    }
-
     var SEND_EVERY = 80;     // ms between pos messages while moving
     var EASE = 0.15;         // s: how fast a follower closes a gap
     var SNAP_LINES = 3;      // a gap bigger than this is a jump, not a drift
@@ -44,13 +39,14 @@
         var onStatus = o.onStatus || function () {};
 
         var lead = o.lead !== false, lastSent = -1e9;
-        var pos = null, y0 = 0, err = 0, frame = 0, last = 0;
+        var pos = null, err = 0, frame = 0, last = 0;
 
         // ---- lead: broadcast ----
         function snapshot() {
             return {
                 type: 'pos',
                 anchor: renderer.anchor(),
+                loc: renderer.locate(),
                 vel: motion.velocity,
                 sl: renderer.scrollLines(),
                 playing: motion.playing,
@@ -73,10 +69,16 @@
         }
 
         // ---- follower: chase the lead ----
-        function layoutF() {
-            return { y0: y0, lh: renderer.lineHeight(), sl: renderer.scrollLines(), top: renderer.topY(), end: renderer.endY() };
+        // Where to be now: the lead's place, moved on by its velocity (in
+        // the lead's lines) for the time since it said so, then placed in
+        // this window's own layout.
+        function want() {
+            var dt = Math.max(0, Math.min(2, (wall() - pos.t) / 1000));
+            var loc = pos.loc ? renderer.advance(pos.loc, (pos.vel || 0) * dt) : null;
+            var y = loc ? renderer.place(loc) : renderer.yFor(pos.anchor);
+            var top = renderer.topY(), end = renderer.endY();
+            return y < top ? top : y > end ? end : y;
         }
-        function want() { return target(pos, layoutF(), wall()); }
         function moving() { return pos && (Math.abs(pos.vel || 0) > 1e-6 || Math.abs(err) > 0.3); }
         function kick() { if (!frame && !lead) { last = 0; frame = raf(fTick) || 1; } }
         function fTick(t) {
@@ -86,13 +88,12 @@
             last = t;
             err *= Math.exp(-dt / EASE);
             if (Math.abs(err) < 0.3) err = 0;
-            if (renderer.setY(want() + err) === false) { y0 = renderer.yFor(pos.anchor); }
+            renderer.setY(want() + err);
             if (moving()) frame = raf(fTick) || 1;
         }
         function onPos(m) {
             if (lead) return;
             pos = m;
-            y0 = renderer.yFor(m.anchor);
             var gap = renderer.y() - want();
             err = Math.abs(gap) > SNAP_LINES * renderer.lineHeight() ? 0 : gap;
             renderer.setCountdown(m.countdown == null ? null : m.countdown);
@@ -106,7 +107,7 @@
             if (lead) return player.layout(y);
             // keep the bounds current (the WPM readout uses them)
             motion.setBounds(0, Math.max(0, player.posFromY(renderer.endY())));
-            if (pos) { y0 = renderer.yFor(pos.anchor); err = 0; kick(); }
+            if (pos) { err = 0; kick(); }
         }
 
         function setLead(on, seed) {

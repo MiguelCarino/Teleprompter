@@ -89,6 +89,61 @@
         return p.top + (p.lines - 0.5) * L.lh;
     }
     function scrollLines(L) { return Math.max(0, (endYOf(L) - topYOf(L)) / L.lh); }
+
+    // ---- following another output (P2) ----
+    // Outputs of different sizes wrap the same paragraph into different
+    // numbers of lines, so a character offset is a poor thing to follow:
+    // a follower placed by "the first character of the lead's line" leaps
+    // whenever that line changes, and skips its own extra lines when the
+    // lead reaches a paragraph's end (worst on a portrait monitor).
+    // Instead the lead says where it is INSIDE its paragraph:
+    //   { para, rel, pl, ppl }  paragraph index; lines from its top (past
+    //   `pl` is the one-line gap below it); its line count on the lead, and
+    //   the previous paragraph's (`ppl`).
+    // A follower walks the same BLOCK at an even pace: a block runs from
+    // one paragraph's first line on the reading line to the next one's, so
+    // every paragraph starts at the same moment on every output, the speed
+    // is constant inside a block (no stall in the gap), and the whole map
+    // is continuous: a follower never jumps. The last paragraph maps its
+    // first line to its last, so every output ends together.
+    function locate(L, y) {
+        var P = L.paras;
+        if (!P.length) return { para: 0, rel: y / L.lh, pl: 1, ppl: 0 };
+        var i = Math.max(0, paraIndexAt(P, y));
+        return { para: i, rel: (y - P[i].top) / L.lh, pl: P[i].lines, ppl: i ? P[i - 1].lines : 0 };
+    }
+    // the pace ratio of a block: follower lines per lead line
+    function blockK(pl, plf, last) {
+        if (last && pl >= 2) return (plf - 1) / (pl - 1);
+        return (plf + 1) / (pl + 1);
+    }
+    // lines into a paragraph on the lead → lines into the same paragraph on
+    // a follower (plf / pplf: the follower's counts; ppl 0 = no previous)
+    function mapRel(rel, pl, plf, ppl, pplf, last) {
+        if (rel >= 0.5) return 0.5 + (rel - 0.5) * blockK(pl, plf, last);
+        // the top half of the first line still belongs to the previous block
+        var k0 = ppl > 0 ? blockK(ppl, pplf, false) : 1;
+        return 0.5 - (0.5 - rel) * k0;
+    }
+    // Move a location by `d` of the lead's lines. In a paragraph the lead
+    // has not described yet, the follower's own count stands in (the next
+    // message comes within 80 ms anyway).
+    function advance(L, loc, d) {
+        var P = L.paras, i = loc.para, rel = loc.rel + d, pl = loc.pl, ppl = loc.ppl || 0;
+        if (!P.length) return { para: 0, rel: rel, pl: pl, ppl: 0 };
+        i = clamp(i, 0, P.length - 1);
+        while (rel >= pl + 1 && i < P.length - 1) { rel -= pl + 1; i++; ppl = pl; pl = P[i].lines; }
+        while (rel < 0 && i > 0) { i--; pl = ppl || P[i].lines; ppl = i ? P[i - 1].lines : 0; rel += pl + 1; }
+        return { para: i, rel: rel, pl: pl, ppl: ppl };
+    }
+    function place(L, loc) {
+        var P = L.paras;
+        if (!P.length) return loc.rel * L.lh;
+        var i = clamp(loc.para, 0, P.length - 1), same = i === loc.para;
+        var pl = Math.max(1, same ? loc.pl : P[i].lines);
+        var ppl = i ? (same && loc.ppl ? loc.ppl : P[i - 1].lines) : 0;
+        return P[i].top + mapRel(loc.rel, pl, P[i].lines, ppl, i ? P[i - 1].lines : 0, i === P.length - 1) * L.lh;
+    }
     function yFromAnchor(L, a, lineOf) {
         var P = L.paras, lh = L.lh;
         if (!P.length) return a.frac * lh;
@@ -334,6 +389,10 @@
             topY: function () { return topYOf(L); },
             endY: function () { return endYOf(L); },
             scrollLines: function () { return scrollLines(L); },
+            // where y is inside its paragraph, and back (following, P2)
+            locate: function (yy) { return locate(L, yy == null ? y : yy); },
+            place: function (loc) { return place(L, loc); },
+            advance: function (loc, d) { return advance(L, loc, d); },
             paraYs: function () { return L.paras.map(function (p) { return p.top + L.lh / 2; }); },
             lineCount: function () { return totalLines; },
             words: function () { return model.words; },
@@ -356,5 +415,6 @@
         // pure layout math, exported for tests
         paraIndexAt: paraIndexAt, anchorFromY: anchorFromY, yFromAnchor: yFromAnchor,
         topYOf: topYOf, endYOf: endYOf, scrollLines: scrollLines,
+        locate: locate, mapRel: mapRel, advance: advance, place: place,
     };
 });

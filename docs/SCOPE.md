@@ -299,6 +299,18 @@ from what exists):
   are shared. The control's own mirror/flip apply to Present here only.
 - In the controls, the **preview takes the lead output's shape and
   settings**, so it shows what that output shows.
+- **Following by place in the paragraph, not by character** (fixed
+  26 October 2026, after a portrait monitor was seen leaping at paragraph
+  ends). A narrower screen wraps each paragraph into more lines; following
+  "the first character of the lead's line" made it skip its extra lines
+  whenever the lead reached a paragraph's end. The lead now sends where it
+  is inside its paragraph (render.js `locate`), and each follower walks the
+  same paragraph-plus-gap block at an even pace (`place`), so every
+  paragraph starts at the same moment on every output, the script ends
+  together, and nothing jumps. Inside a paragraph the words on the two
+  reading lines can differ by up to about a line. Tested in
+  `tests/link.test.mjs` and by a portrait-output pace check in
+  `tests/outputs.e2e.cjs`, which fails on the old code.
 - Keys pressed in an output go to the control, which routes them like its
   own, so every window answers the same keys. With the control gone, a lead
   output still answers the transport keys.

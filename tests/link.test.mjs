@@ -1,5 +1,5 @@
 // node --test tests/ — the multi-window pieces that need no browser:
-// the channel filter, a follower's target, the lead handoff, screens.
+// the channel filter, following by paragraph place, the lead handoff, screens.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -47,19 +47,68 @@ test('no BroadcastChannel: open() returns null and the page runs alone', () => {
     assert.equal(link.open('a', () => {}, class { constructor() { throw new Error('file://'); } }), null);
 });
 
-test('a follower extrapolates the lead in its own line units', () => {
-    const pos = { vel: 0.5, sl: 100, t: 1000 };
-    // same layout: half a line per second, 40 px lines → 20 px/s
-    const f = { y0: 200, lh: 40, sl: 100, top: 20, end: 4020 };
-    assert.equal(link.followTarget(pos, f, 1000), 200);
-    assert.equal(link.followTarget(pos, f, 2000), 220);
-    // smaller text wraps to fewer lines: the follower covers its whole
-    // script in the same time as the lead covers the lead's
-    const g = { y0: 100, lh: 20, sl: 50, top: 10, end: 1010 };
-    assert.equal(link.followTarget(pos, g, 3000), 100 + 0.5 * 20 * 0.5 * 2);
-    // clamped to the script, and a stale message does not run away
-    assert.equal(link.followTarget(pos, { ...f, end: 205 }, 9000), 205);
-    assert.equal(link.followTarget({ ...pos, vel: -1 }, f, 1e9), 200 - 40 * 2);
+const render = require('../prompter/render.js');
+// a layout of paragraphs with these line counts, one-line gaps, lh px lines
+function layout(lines, lh) {
+    let top = 0;
+    return { lh, paras: lines.map((n) => { const p = { top, lines: n }; top += (n + 1) * lh; return p; }) };
+}
+
+// Walk the lead from its first line to its last, 1 px at a time, and
+// record where a follower is placed.
+function walk(lead, fol) {
+    const out = [];
+    for (let y = render.topYOf(lead); y <= render.endYOf(lead) + 1e-9; y += 1)
+        out.push(render.place(fol, render.locate(lead, y)));
+    return out;
+}
+
+test('following by place in the paragraph: a portrait screen never leaps or stalls', () => {
+    // the lead (wide) wraps each paragraph into 3 lines, a portrait
+    // follower wraps the same paragraphs into 7
+    const lead = layout([3, 3, 3, 3], 50), fol = layout([7, 7, 7, 7], 30);
+    const ys = walk(lead, fol), steps = ys.slice(1).map((v, i) => v - ys[i]);
+    assert.ok(steps.every((d) => d >= -1e-9), 'never backwards');
+    // even pace: every block is (7+1)/(3+1) = 2 follower lines per lead line,
+    // the last paragraph (7-1)/(3-1) = 3; 1 lead px = 1/50 line
+    const blocks = steps.slice(0, Math.floor(3.5 * 50) * 3);
+    for (const d of blocks) assert.ok(Math.abs(d - 2 * 30 / 50) < 1e-6, 'block pace ' + d);
+    assert.ok(Math.max(...steps) <= 3 * 30 / 50 + 1e-9, 'largest step ' + Math.max(...steps));
+    assert.ok(Math.min(...steps) >= 2 * 30 / 50 - 1e-9, 'no stall in the gaps');
+});
+
+test('every paragraph starts on the reading line at the same moment, and the script ends together', () => {
+    const lead = layout([2, 5, 1, 4], 40), fol = layout([4, 9, 2, 6], 24);
+    for (let i = 0; i < 4; i++) {
+        const P = lead.paras[i], F = fol.paras[i];
+        const first = render.place(fol, render.locate(lead, P.top + 0.5 * 40));
+        assert.ok(Math.abs(first - (F.top + 0.5 * 24)) < 1e-9, 'first line of ' + i + ': ' + first);
+    }
+    const end = render.place(fol, render.locate(lead, render.endYOf(lead)));
+    assert.ok(Math.abs(end - render.endYOf(fol)) < 1e-9, 'ends together: ' + end);
+    // the same layout maps onto itself exactly
+    const L = layout([3, 1, 6], 33);
+    for (const y of [10, 50, 99, 200, 333])
+        assert.ok(Math.abs(render.place(L, render.locate(L, y)) - y) < 1e-9, 'identity at ' + y);
+});
+
+test('the map is continuous everywhere, one-line paragraphs included', () => {
+    for (const [a, b] of [[[1, 1, 1], [1, 4, 2]], [[4, 1, 3], [1, 1, 1]], [[2, 7, 1, 1], [7, 2, 3, 1]], [[3, 3], [3, 3]]]) {
+        const lead = layout(a, 20), fol = layout(b, 30);
+        const ys = walk(lead, fol);
+        for (let i = 1; i < ys.length; i++) {
+            const d = ys[i] - ys[i - 1];
+            assert.ok(d >= -1e-9 && d < 30 * 0.25, a + ' → ' + b + ' at step ' + i + ': ' + d);
+        }
+    }
+});
+
+test('advance() walks across paragraph boundaries both ways', () => {
+    const L = layout([3, 2, 4], 10);
+    assert.deepEqual(render.advance(L, { para: 0, rel: 3.5, pl: 3, ppl: 0 }, 1), { para: 1, rel: 0.5, pl: 2, ppl: 3 });
+    assert.deepEqual(render.advance(L, { para: 1, rel: 0.25, pl: 2, ppl: 3 }, -1), { para: 0, rel: 3.25, pl: 3, ppl: 0 });
+    const end = render.advance(L, { para: 2, rel: 3, pl: 4 }, 50);
+    assert.equal(end.para, 2, 'stays in the last paragraph (clamped later)');
 });
 
 // A fake renderer/motion/player trio, enough for station.
@@ -69,6 +118,8 @@ function rig() {
         setY(y) { this._y = y; return true; }, y() { return this._y; },
         anchor() { return { ...this._anchor }; }, setAnchor(a) { this._anchor = { ...a }; this._y = a.offset; },
         yFor(a) { return a.offset; }, lineHeight() { return 10; }, scrollLines() { return 100; },
+        locate(y) { return { para: 0, rel: (y == null ? this._y : y) / 10, pl: 1e9 }; },
+        place(loc) { return loc.rel * 10; }, advance(loc, d) { return { ...loc, rel: loc.rel + d }; },
         topY() { return 0; }, endY() { return 1000; },
         setCountdown(n) { this.countdown = n; }, setEnded(v) { this.ended = v; },
     };
