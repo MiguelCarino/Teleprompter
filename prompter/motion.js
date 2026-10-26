@@ -135,6 +135,8 @@
                 return s.ended !== was;
             },
             resetElapsed: function () { s.elapsed = 0; },
+            // a new lead output carries on the take's clock (P2)
+            setElapsed: function (v) { s.elapsed = Math.max(0, +v || 0); },
             setEnded: function (v) { s.ended = !!v; },
             isActive: function () { return s.playing || velocity() !== 0 || s.u < RAMP || s.tweens.length > 0; },
 

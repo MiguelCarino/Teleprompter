@@ -1,6 +1,6 @@
 # Teleprompter — scope for a professional prompter
 
-Rev 3 · 26 October 2026 · status: **approved; P1 in progress**. All §9
+Rev 4 · 26 October 2026 · status: **approved; P1 and P2 built** (uncommitted). All §9
 decisions settled by the owner on 26 October 2026. Device input (§5.7, P4)
 and the phone remote are **on hold**: multi-monitor first.
 
@@ -271,6 +271,42 @@ from what exists):
 - The "line" reading-line style is drawn as an underline below the line
   being read (so it never strikes through words) and is labelled
   "Underline".
+
+**How P2 was built** (26 October 2026):
+
+- Files: `output.html` + `prompter/output.js` (the output window),
+  `prompter/link.js` (the channel, §4.4), `prompter/station.js` (lead or
+  follower, §4.3), `prompter/screens.js` (the monitors).
+- **Detecting monitors and offering them.** On Chromium, `screen.isExtended`
+  says a second monitor is there with no prompt. The Present-here bar then
+  offers "Open on the other screen", and the control's **Screens** section
+  lists every monitor by name and size with an "Open on …" button
+  (one permission prompt, "Find screens", the first time). The window opens
+  over that monitor and, where Chromium allows it for this permission,
+  straight in full screen. Otherwise the output asks for one click (or F)
+  for full screen. Without the API (Firefox, Safari) the section says to
+  open an output window, drag it across and press F.
+- Opening an output turns the main window into the control surface (§3).
+- **Who leads.** The first output opened leads. The control window and any
+  other outputs follow its `pos` messages, sent every 80 ms while moving
+  and at once on any change, and extrapolate between them. If the lead
+  closes, the next output takes over from the last position it reported.
+  When the last output closes, the control leads again. A reloaded control
+  page listens for 0.7 s before it names a lead, so an output that is
+  reading keeps reading and the control adopts it.
+- **Per output:** mirror, flip and (with "Same text size on every output"
+  off) text size, remembered per monitor name. The other display settings
+  are shared. The control's own mirror/flip apply to Present here only.
+- In the controls, the **preview takes the lead output's shape and
+  settings**, so it shows what that output shows.
+- Keys pressed in an output go to the control, which routes them like its
+  own, so every window answers the same keys. With the control gone, a lead
+  output still answers the transport keys.
+- Identify shows the output's number on it for 2.5 s. Close closes it.
+- Known limits: two control tabs open at once would both talk to the same
+  outputs (not handled). Fullscreen on a chosen monitor and the screen list
+  are tested against a simulated two-monitor setup in headless Chromium,
+  not real hardware.
 
 Testing: `model.js` and the anchor mapping are pure functions and get
 `node --test`, the way Ping does. The two-window sync gets a Playwright suite

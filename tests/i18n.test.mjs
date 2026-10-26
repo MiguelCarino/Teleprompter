@@ -36,7 +36,7 @@ function usedKeys() {
     for (const m of app.matchAll(/\btt\('((?:[^'\\]|\\.)*)'\)/g)) keys.add(m[1]);
     for (const m of app.matchAll(/setLabel\(\$\('\w+'\),\s*([^\n]*)\);/g)) for (const s of m[1].matchAll(/'([^']+)'/g)) keys.add(s[1]);
     // the state names, looked up through tt({ … }[state])
-    const states = app.match(/tt\(\{([^}]*)\}\[st\]\)/);
+    const states = app.match(/tt\(\{([^}]*)\}\[(?:st|state)\]\)/);
     assert.ok(states, 'state label map in app.js');
     for (const s of states[1].matchAll(/'([^']+)'/g)) keys.add(s[1]);
     // dynamic play label

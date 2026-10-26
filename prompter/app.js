@@ -57,6 +57,7 @@
         Object.keys(RANGE).forEach(function (k) { s[k] = got[k] == null ? RANGE[k].def : snap(k, got[k]); });
         Object.keys(CHOICE).forEach(function (k) { s[k] = CHOICE[k].indexOf(String(got[k])) >= 0 ? String(got[k]) : CHOICE[k][0]; });
         FLAGS.forEach(function (k) { s[k] = got[k] === true; });
+        s.sameSize = got.sameSize !== false;   // one text size on every output, unless asked
         return s;
     }
     var settings = loadSettings();
@@ -73,20 +74,38 @@
     var model = TP.model.parse('');
     var isSample = true;
     var player = null;
-    var renderer = TP.render.create(screen, { onLayout: function (y) { if (player) player.layout(y); } });
+    var station = null;
+    var renderer = TP.render.create(screen, { onLayout: function (y) { if (station) station.layout(y); } });
     var wake = TP.player.wakeLock(navigator, document);
+    // P2: other windows (output.html) join over the channel; null when the
+    // browser has none, and the page is then a single window as in P1.
+    var link = TP.link.open('control', onLinkMessage);
     player = TP.player.create({
         motion: motion, renderer: renderer,
-        onChange: function () { wake.set(player.running()); updateUi(); },
+        onChange: function () { station.changed(); updateUi(); },
         onFrame: updateReadouts,
         onIdle: savePos,
+        onTick: function () { station.tick(); },
+    });
+    // This window leads (runs the scroll) until an output window opens;
+    // then the first output leads and this one follows it (§4.3).
+    station = TP.station.create({
+        renderer: renderer, motion: motion, player: player, link: link,
+        onStatus: function () { updateUi(); },
     });
     player.setCountdown(+settings.countdown);
+
+    // A transport action, run where the scroll is driven: here, or in the
+    // lead output window.
+    function act(action, arg) {
+        if (station.isLead()) TP.station.perform(player, action, arg);
+        else if (link) link.send({ type: 'cmd', to: leadId, action: action, arg: arg });
+    }
 
     function changeSpeed(d) {
         settings.speed = snap('speed', settings.speed + d);
         $('speed').value = settings.speed;
-        player.setSpeed(settings.speed);
+        setSpeed();
         saveSettings(); updateUi();
     }
 
@@ -143,12 +162,14 @@
             fitPreview();
             window.dispatchEvent(new Event('resize'));   // the navbar refits
         }
+        applyOwnSettings();
         renderer.check();
     }
     // The preview is the output at the window's size, scaled into the frame.
     function fitPreview() {
         if (mode !== 'control') return;
-        var W = window.innerWidth, H = window.innerHeight;
+        // the lead output's size when there is one: the preview is that screen
+        var o = previewOutput(), W = o && o.w ? o.w : window.innerWidth, H = o && o.h ? o.h : window.innerHeight;
         frame.style.setProperty('--ar', (W / H).toFixed(4));
         var k = frame.getBoundingClientRect().width / W;
         screen.style.width = W + 'px';
@@ -191,6 +212,11 @@
         var h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
         return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s;
     }
+    function setSpeed() {
+        motion.setSpeed(settings.speed);
+        act('speed', settings.speed);
+        pushSettings();
+    }
     function speedText() {
         // words over the scroll distance (gaps between paragraphs included)
         var w = TP.motion.wpm(settings.speed, renderer.words(), Math.max(1, motion.max));
@@ -198,7 +224,8 @@
     }
     function setLabel(el, key) { el.dataset.i18nKey = key; el.textContent = tt(key); }
     function updateReadouts() {
-        var pos = Math.round(motion.progress * 100) + ' %', time = clock(motion.elapsed), sp = speedText();
+        var st = station.status();
+        var pos = Math.round(st.progress * 100) + ' %', time = clock(st.elapsed), sp = speedText();
         $('hudPos').textContent = pos; $('ctlPos').textContent = pos;
         $('hudTime').textContent = time; $('ctlTime').textContent = time;
         $('hudSpeed').textContent = sp; $('ctlSpeed').textContent = sp;
@@ -206,18 +233,19 @@
         $('hudPos').title = tt('Position'); $('hudTime').title = tt('Elapsed'); $('hudSpeed').title = tt('Speed');
     }
     function updateUi() {
-        var run = player.running(), end = player.atEnd(), countdown = player.countingDown();
+        var st = station.status(), run = st.running, end = st.ended, countdown = st.countdown;
+        wake.set(run && (st.lead || mode === 'present'));
         var key = run ? 'Pause' : end ? 'Back to top' : 'Play';
         ['playBtn', 'playBtn2', 'hudPlay'].forEach(function (id) {
             var b = $(id);
             setLabel(b, key);
             b.setAttribute('aria-pressed', run ? 'true' : 'false');
         });
-        $('revBtn').setAttribute('aria-pressed', motion.direction < 0 ? 'true' : 'false');
-        var st = countdown ? 'countdown' : motion.playing ? 'playing' : end ? 'ended' : 'paused';
+        $('revBtn').setAttribute('aria-pressed', st.dir < 0 ? 'true' : 'false');
+        var state = countdown ? 'countdown' : st.playing ? 'playing' : end ? 'ended' : 'paused';
         var stEl = $('ctlState');
-        stEl.dataset.state = st;
-        stEl.textContent = tt({ countdown: 'Countdown', playing: motion.direction < 0 ? 'Playing in reverse' : 'Playing', ended: 'End of script', paused: 'Paused' }[st]);
+        stEl.dataset.state = state;
+        stEl.textContent = tt({ countdown: 'Countdown', playing: st.dir < 0 ? 'Playing in reverse' : 'Playing', ended: 'End of script', paused: 'Paused' }[state]);
         updateReadouts();
     }
     function updateOutputs() {
@@ -259,6 +287,7 @@
         var mapped = { offset: TP.model.mapOffset(model.text, text, a.offset), frac: a.frac };
         model = TP.model.parse(text);
         renderer.setModel(model, mapped);
+        sendScript();
         updateUi();
     }
     editor.addEventListener('input', function () {
@@ -274,7 +303,8 @@
         editor.value = text;
         model = TP.model.parse(text);
         renderer.setModel(model);
-        player.top();
+        sendScript(true);
+        act('top');
         saveScript();
     }
     var note = function (msg) { $('fileNote').textContent = msg || ''; };
@@ -318,8 +348,8 @@
         inp.value = settings[k];
         inp.addEventListener('input', function () {
             settings[k] = snap(k, inp.value);
-            if (k === 'speed') player.setSpeed(settings.speed);
-            else renderer.setSettings(renderSettings());
+            if (k === 'speed') setSpeed();
+            else { applyOwnSettings(); pushSettings(); }
             updateOutputs(); updateReadouts(); saveSettings();
         });
     });
@@ -329,7 +359,8 @@
         sel.addEventListener('change', function () {
             settings[k] = CHOICE[k].indexOf(sel.value) >= 0 ? sel.value : CHOICE[k][0];
             if (k === 'countdown') player.setCountdown(+settings.countdown);
-            else renderer.setSettings(renderSettings());
+            else applyOwnSettings();
+            pushSettings();
             updateReadouts(); saveSettings();
         });
     });
@@ -338,7 +369,7 @@
         cb.checked = settings[k];
         cb.addEventListener('change', function () {
             settings[k] = cb.checked;
-            renderer.setSettings(renderSettings());
+            applyOwnSettings();
             saveSettings();
         });
     });
@@ -349,14 +380,16 @@
         var b = $(id);
         b.addEventListener('click', function (e) { fn(); if (e.detail && b.blur) b.blur(); });
     }
-    onClick('playBtn', player.toggle); onClick('playBtn2', player.toggle); onClick('hudPlay', player.toggle);
+    var toggle = function () { act('toggle'); };
+    onClick('playBtn', toggle); onClick('playBtn2', toggle); onClick('hudPlay', toggle);
     onClick('presentBtn', function () { setMode('present'); });
     onClick('hudCtl', function () { setMode('control'); });
     onClick('hudFs', toggleFullscreen);
-    onClick('topBtn', player.top);
-    onClick('prevBtn', function () { player.paragraph(-1); });
-    onClick('nextBtn', function () { player.paragraph(1); });
-    onClick('revBtn', player.reverse);
+    onClick('topBtn', function () { act('top'); });
+    onClick('prevBtn', function () { act('paragraph', -1); });
+    onClick('nextBtn', function () { act('paragraph', 1); });
+    onClick('revBtn', function () { act('reverse'); });
+    onClick('hudOut', offerOutputs);
     // A checkbox, slider or select changed with the mouse lets go of focus
     // too; changed from the keyboard, it keeps it.
     var byPointer = false;
@@ -369,22 +402,280 @@
 
     // ---- the fixed key map (R7, prompter/input.js), in both modes ----
     var SPEED_STEP = 0.05;
-    TP.input.attach(document, function (action) {
+    // Keys pressed in an output window arrive here too (as `key`), so
+    // every window answers the same keys the same way.
+    function onAction(action, remote) {
         switch (action) {
-            case 'toggle': player.toggle(); break;
+            case 'toggle': act('toggle'); break;
             case 'faster': changeSpeed(SPEED_STEP); break;
             case 'slower': changeSpeed(-SPEED_STEP); break;
-            case 'back': player.nudge(-1); break;
-            case 'forward': player.nudge(1); break;
-            case 'prevPara': player.paragraph(-1); break;
-            case 'nextPara': player.paragraph(1); break;
-            case 'top': player.top(); break;
-            case 'reverse': player.reverse(); break;
-            case 'fullscreen': toggleFullscreen(); break;
-            case 'escape': if (mode !== 'present') return false; setMode('control'); break;
+            case 'back': act('nudge', -1); break;
+            case 'forward': act('nudge', 1); break;
+            case 'prevPara': act('paragraph', -1); break;
+            case 'nextPara': act('paragraph', 1); break;
+            case 'top': act('top'); break;
+            case 'reverse': act('reverse'); break;
+            case 'fullscreen': if (remote) return false; toggleFullscreen(); break;
+            case 'escape': if (remote || mode !== 'present') return false; setMode('control'); break;
             default: return false;
         }
-        poke();
+        if (!remote) poke();
+    }
+    TP.input.attach(document, function (action) { return onAction(action, false); });
+
+
+    // ---- outputs: other windows on other monitors (P2, §3 mode 2) ----
+    // The control keeps a list of the output windows it can hear. Each has
+    // its own mirror, flip and (when "same text size" is off) text size,
+    // remembered per screen. The first output opened leads the scroll; this
+    // window follows it, and its preview takes that output's size and
+    // settings, so the preview is still what the reader sees.
+    var KEY_OUTPUTS = 'teleprompter:outputs';
+    var outputs = [], leadId = 'control', orderSeq = 0, openSeq = 0, settling = false;
+    var scr = TP.screens.create(window, renderOutputs);
+
+    function byId(id) { for (var i = 0; i < outputs.length; i++) if (outputs[i].id === id) return outputs[i]; return null; }
+    function remembered(screenName) {
+        var all = load(KEY_OUTPUTS) || {}, r = all[screenName || ''] || {};
+        return { mirror: r.mirror === true, flip: r.flip === true, size: r.size == null ? settings.size : snap('size', r.size) };
+    }
+    function remember(o) {
+        var all = load(KEY_OUTPUTS) || {};
+        all[o.screen || ''] = { mirror: o.mirror, flip: o.flip, size: o.size };
+        save(KEY_OUTPUTS, all);
+    }
+    function effective(o) {
+        var r = renderSettings();
+        r.mirror = o.mirror; r.flip = o.flip;
+        r.size = settings.sameSize ? settings.size : o.size;
+        return r;
+    }
+    function previewOutput() { return mode === 'control' ? byId(leadId) : null; }
+    // This window's own renderer: the lead output's look in the preview,
+    // the page's own settings when presenting here.
+    function applyOwnSettings() {
+        var o = previewOutput();
+        renderer.setSettings(o ? effective(o) : renderSettings());
+    }
+    function labelsFor() {
+        return { end: tt('End of script'), fs: tt('Click for full screen, or press F.'), alone: tt('Open this window from the Teleprompter controls.') };
+    }
+    function settingsMsg(o) {
+        return { type: 'settings', to: o.id, s: effective(o), labels: labelsFor(), lang: lang(), countdown: +settings.countdown, speed: settings.speed };
+    }
+    function pushSettings(only) {
+        if (!link) return;
+        outputs.forEach(function (o) { if (!only || o === only) link.send(settingsMsg(o)); });
+    }
+    function sendScript(reset, to) {
+        if (!link) return;
+        var m = { type: 'script', text: model.text, reset: !!reset, anchor: renderer.anchor() };
+        if (to) m.to = to;
+        link.send(m);
+    }
+    // Ask whoever leads to say where it is now (a new follower needs a pos).
+    function requestSync() {
+        if (station.isLead()) station.changed();
+        else if (link) link.send({ type: 'cmd', to: leadId, action: 'sync' });
+    }
+
+    // The first output (in the order they were opened) leads; with none,
+    // this window does. A new lead carries on from the old one's last pos.
+    function updateLead() {
+        outputs.sort(function (a, b) { return a.order - b.order; });
+        var next = outputs.length ? outputs[0].id : 'control';
+        if (next === leadId) return;
+        var seed = station.lastPos();
+        leadId = next;
+        station.setLead(next === 'control', seed);
+        if (link) link.send({ type: 'lead', id: next, seed: seed });
+        applyOwnSettings(); fitPreview(); renderOutputs(); updateUi();
+    }
+    function prune() {
+        var now = Date.now(), before = outputs.length;
+        outputs = outputs.filter(function (o) { return now - o.seen < 3500 && !(o.win && o.win.closed); });
+        if (outputs.length !== before) { updateLead(); renderOutputs(); fitPreview(); }
+    }
+    function heartbeat() {
+        if (!link) return;
+        var m = { type: 'control' };
+        if (!settling) m.lead = leadId;
+        link.send(m);
+        prune();
+    }
+
+    function onLinkMessage(m) {
+        var o = byId(m.from);
+        switch (m.type) {
+            case 'hello':
+                var isNew = !o;
+                if (isNew) {
+                    o = Object.assign({ id: m.from, order: m.lead ? -1 : ++orderSeq, screen: m.screen || '', fresh: true }, remembered(m.screen));
+                    outputs.push(o);
+                }
+                var resized = o.w !== m.w || o.h !== m.h;
+                o.seen = Date.now(); o.w = m.w; o.h = m.h;
+                if (m.screen) o.screen = m.screen;
+                if (o.fresh) {
+                    o.fresh = false;
+                    sendScript(false, o.id);
+                    pushSettings(o);
+                    // This page reloaded while that output was leading: it
+                    // keeps leading, and this page follows from its pos.
+                    if (m.lead && settling && leadId === 'control') {
+                        o.order = -1;
+                        leadId = o.id;
+                        station.setLead(false);
+                        if (m.pos) station.onPos(m.pos);
+                    }
+                    if (!settling) updateLead();
+                    if (link) link.send({ type: 'lead', to: o.id, id: leadId });
+                    requestSync();
+                    renderOutputs();
+                }
+                if ((isNew || resized) && o.id === leadId) fitPreview();
+                break;
+            case 'bye':
+                if (o) { outputs.splice(outputs.indexOf(o), 1); updateLead(); renderOutputs(); fitPreview(); }
+                break;
+            case 'key':
+                onAction(m.action, true);
+                break;
+            case 'pos':
+                station.onPos(m);
+                break;
+        }
+    }
+
+    function startLink() {
+        renderOutputs();
+        if (!link) return;
+        // Outputs left open across a reload answer this with their hello.
+        settling = true;
+        link.send({ type: 'control', hello: true });
+        setTimeout(function () { settling = false; updateLead(); heartbeat(); }, 700);
+        setInterval(heartbeat, 1000);
+    }
+
+    function screenName(e) { return e.label || tt('Screen {n}').replace('{n}', e.n); }
+    function openOutput(entry) {
+        if (!link) return null;
+        var id = TP.link.newId(++openSeq, Math.random());
+        var name = entry ? screenName(entry) : '';
+        var url = 'output.html#id=' + encodeURIComponent(id) + (name ? '&screen=' + encodeURIComponent(name) : '');
+        var w = scr.open(url, 'tp-' + id, entry);
+        if (!w) { outNote(tt('The browser blocked the window. Allow pop-ups for this site and try again.')); return null; }
+        outNote('');
+        // listed now; the window's hello fills in its size (it gets 10 s to load)
+        var o = Object.assign({ id: id, order: ++orderSeq, screen: name, fresh: true, seen: Date.now() + 6500, win: w }, remembered(name));
+        outputs.push(o);
+        setMode('control');
+        updateLead(); renderOutputs();
+        return o;
+    }
+    function closeOutput(o) {
+        if (o.win && !o.win.closed) { try { o.win.close(); } catch (e) { /* not ours */ } }
+        if (link) link.send({ type: 'cmd', to: o.id, action: 'close' });
+        outputs.splice(outputs.indexOf(o), 1);
+        updateLead(); renderOutputs(); fitPreview();
+    }
+    function otherScreens() { return scr.state().list.filter(function (e) { return !e.current; }); }
+    // The HUD's offer: one other screen → open there; otherwise the list.
+    function offerOutputs() {
+        var others = otherScreens(), st = scr.state();
+        if (others.length === 1 && !outputs.length) { openOutput(others[0]); return; }
+        setMode('control');
+        if (st.api && st.permission === 'prompt') scr.detect();
+        var head = $('outHead');
+        if (head && head.scrollIntoView) head.scrollIntoView({ block: 'start' });
+    }
+    function outNote(msg) { $('outNote').textContent = msg || ''; }
+
+    // The Screens section of the rail, rebuilt (DOM only) on every change.
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function checkbox(label, on, fn) {
+        var l = el('label', 'check'), c = el('input');
+        c.type = 'checkbox'; c.checked = on;
+        c.addEventListener('change', function () { fn(c.checked); });
+        l.appendChild(c); l.appendChild(document.createTextNode(' ')); l.appendChild(el('span', null, label));
+        return l;
+    }
+    function button(label, fn, cls) {
+        var b = el('button', 'cs-btn' + (cls ? ' ' + cls : ''), label);
+        b.type = 'button';
+        b.addEventListener('click', function (e) { fn(); if (e.detail && b.blur) b.blur(); });
+        return b;
+    }
+    function renderOutputs() {
+        var st = scr.state(), note = $('scrNote'), list = $('scrList'), outs = $('outList');
+        if (!note) return;
+        var others = otherScreens();
+        // what the browser can tell about the monitors
+        var msg;
+        if (!link) msg = tt('This browser cannot open output windows. Present here still works.');
+        else if (st.list.length > 1) msg = tt('{n} screens connected.').replace('{n}', st.list.length);
+        else if (st.list.length === 1) msg = tt('Only one screen is connected. You can still open an output window on it.');
+        else if (st.api && st.permission === 'denied') msg = tt('Screen access was refused, so a window opens where the browser puts it: drag it to the other screen and press F.');
+        else if (st.api && st.extended) msg = tt('Another screen is connected. Allow screen access to open the prompter on it.');
+        else if (st.api && st.extended === false) msg = tt('Only one screen is connected. You can still open an output window on it.');
+        else msg = tt('Open an output window, drag it to the other screen and press F there.');
+        note.textContent = msg;
+
+        list.textContent = '';
+        st.list.forEach(function (e) {
+            var b = button(tt('Open on {name}').replace('{name}', screenName(e)), function () { openOutput(e); });
+            var sub = el('span', 'tp-scr-dim', e.width + '×' + e.height + (e.current ? ' · ' + tt('this screen') : e.primary ? ' · ' + tt('main') : ''));
+            b.appendChild(sub);
+            list.appendChild(b);
+        });
+        list.hidden = !link || !st.list.length;
+        $('scrDetect').hidden = !link || !st.api || st.permission === 'granted' || st.permission === 'denied';
+        $('outOpen').hidden = !link;
+        $('sameSizeRow').hidden = !link || !outputs.length;
+        $('sameSize').checked = settings.sameSize;
+
+        outs.textContent = '';
+        outputs.forEach(function (o, i) {
+            var row = el('div', 'tp-out-row'), head = el('div', 'tp-out-head');
+            head.appendChild(el('strong', null, String(i + 1)));
+            head.appendChild(el('span', null, o.screen || tt('Output window')));
+            if (o.id === leadId) head.appendChild(el('span', 'tp-badge', tt('Drives the scroll')));
+            row.appendChild(head);
+            var opts = el('div', 'tp-out-opts');
+            opts.appendChild(checkbox(tt('Mirror left to right'), o.mirror, function (v) { o.mirror = v; changedOutput(o); }));
+            opts.appendChild(checkbox(tt('Flip upside down'), o.flip, function (v) { o.flip = v; changedOutput(o); }));
+            row.appendChild(opts);
+            if (!settings.sameSize) {
+                var f = el('div', 'field'), lb = el('label'), out = el('output', null, o.size + ' px'), r = el('input');
+                lb.appendChild(el('span', null, tt('Text size'))); lb.appendChild(document.createTextNode(' ')); lb.appendChild(out);
+                r.type = 'range'; r.min = RANGE.size.min; r.max = RANGE.size.max; r.step = RANGE.size.step; r.value = o.size;
+                r.setAttribute('aria-label', tt('Text size') + ' ' + (i + 1));
+                r.addEventListener('input', function () { o.size = snap('size', r.value); out.textContent = o.size + ' px'; changedOutput(o, true); });
+                f.appendChild(lb); f.appendChild(r); row.appendChild(f);
+            }
+            var acts = el('div', 'tp-row');
+            acts.appendChild(button(tt('Identify'), function () { if (link) link.send({ type: 'identify', to: o.id, label: String(i + 1) }); }));
+            acts.appendChild(button(tt('Close'), function () { closeOutput(o); }));
+            row.appendChild(acts);
+            outs.appendChild(row);
+        });
+
+        // the HUD offers the other screen while presenting here
+        var offer = !!link && (others.length > 0 || st.extended === true);
+        $('hudOut').hidden = !offer;
+        if (offer) setLabel($('hudOut'), others.length === 1 && !outputs.length ? 'Open on the other screen' : 'Other screens');
+    }
+    function changedOutput(o, quiet) {
+        remember(o);
+        pushSettings(o);
+        if (o.id === leadId) applyOwnSettings();
+        if (!quiet) renderOutputs();
+    }
+    $('scrDetect').addEventListener('click', function () { scr.detect(); });
+    $('outOpen').addEventListener('click', function (e) { openOutput(null); if (e.detail) e.currentTarget.blur(); });
+    $('sameSize').addEventListener('change', function () {
+        settings.sameSize = $('sameSize').checked;
+        saveSettings(); pushSettings(); applyOwnSettings(); renderOutputs();
     });
 
     window.addEventListener('pagehide', function () { saveScript(); savePos(); });
@@ -392,7 +683,7 @@
     // ---- start: Present here, the saved script (or the sample), still ----
     // app.js is deferred after i18n.js, so the sample starts in the page's
     // language: no English flash, and its saved position still applies.
-    renderer.setSettings(renderSettings());
+    applyOwnSettings();
     renderer.setLabels({ end: tt('End of script') });
     var stored = load(KEY_SCRIPT);
     isSample = !(stored && typeof stored.text === 'string' && !stored.sample);
@@ -406,6 +697,7 @@
     }
     renderer.setModel(model, a);
     updateOutputs(); updateFsLabel(); updateUi();
+    startLink();
     poke(4000);
 
     // i18n.js calls this after every language pass: the end marker, the
@@ -420,8 +712,10 @@
                 editor.value = s;
                 model = TP.model.parse(s);
                 renderer.setModel(model, fromSampleSpot(model, spot));
+                sendScript();
             }
         }
+        pushSettings(); renderOutputs();
         updateOutputs(); updateFsLabel(); updateUi();
     };
 
@@ -431,5 +725,10 @@
         mode: function () { return mode; }, setMode: setMode,
         anchor: function () { return renderer.anchor(); },
         state: player.state,
+        station: station,
+        outputs: function () { return outputs.map(function (o) { return { id: o.id, screen: o.screen, w: o.w, h: o.h, mirror: o.mirror, flip: o.flip, size: o.size }; }); },
+        leadId: function () { return leadId; },
+        screens: function () { return scr.state(); },
+        openOutput: openOutput,
     };
 })();

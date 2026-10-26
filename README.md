@@ -29,12 +29,14 @@ A teleprompter that runs in the browser: write or paste your script, then read i
 
   Clickers and foot pedals that send these keys work too. The keys cannot be changed yet.
 - The screen stays awake while the script is playing, in browsers that support it.
+- **Other monitors.** When a second monitor is connected, the prompter offers to open there ("Open on the other screen"). In the controls, **Screens** lists your monitors by name (Chrome and Edge, after one permission prompt) and opens an output window on the one you pick. Opening one turns this window into the control surface. You can open several outputs, for example the teleprompter glass and a monitor for the talent. Each output has its own mirror and flip, and its own text size if you turn off "Same text size on every output". Editing the script updates every output as you type, without moving the reader's place. Keys work in any of the windows. In Firefox and Safari, open an output window, drag it to the other monitor and press F there.
+- Output windows keep going on their own: if the control window is closed or reloaded, the text keeps moving (a small red dot shows the control is gone), and a reloaded control finds them again.
 
 The script, your settings and your place in the script are saved in this browser only, so a reload brings them back. Nothing is uploaded. If the browser blocks storage (some private windows), the page still works but forgets on reload.
 
 ## Tests
 
-`node --test tests/` runs the engine tests (script parsing, the time-based motion including a 60 Hz vs 144 Hz check, the frame loop and countdown, the key map, the position mapping, and the translations). `node tests/present.e2e.cjs` runs a headless Chromium pass over the page; it uses Playwright from the Topo repository's test folder, checked out next to this one (or set `PLAYWRIGHT=/path/to/playwright`).
+`node --test tests/` runs the engine tests (script parsing, the time-based motion including a 60 Hz vs 144 Hz check, the frame loop and countdown, the key map, the position mapping, and the translations). `node tests/present.e2e.cjs` runs a headless Chromium pass over the page, and `node tests/outputs.e2e.cjs` one over output windows on a simulated second monitor; it uses Playwright from the Topo repository's test folder, checked out next to this one (or set `PLAYWRIGHT=/path/to/playwright`).
 
 ## Licensing
 

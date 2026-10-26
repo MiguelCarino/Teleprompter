@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Teleprompter output</title>
+    <link rel="icon" href="logo.webp">
+    <link rel="stylesheet" href="fonts/carino-fonts.css">
+    <style>
+        /* The output has no chrome, by design (SCOPE §1): black field, the
+           script, the reading line. The few things drawn here are for the
+           person setting it up and go away on their own. */
+        :root {
+            --display: 'Red Hat Display', system-ui, sans-serif;
+            --sans: 'IBM Plex Sans', system-ui, sans-serif;
+            --mono: 'IBM Plex Mono', ui-monospace, monospace;
+        }
+        html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; }
+        body.idle, body.idle * { cursor: none; }
+        #screen { position: fixed; inset: 0; user-select: none; -webkit-user-select: none; }
+        .o-note {
+            position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+            max-width: calc(100% - 32px); box-sizing: border-box;
+            padding: 8px 14px; border-radius: 6px; background: rgba(20, 20, 20, .88);
+            border: 1px solid #333; color: #bbb; font: 500 14px/1.4 var(--mono);
+            text-align: center; pointer-events: none; transition: opacity .4s;
+        }
+        .o-note[hidden] { display: block; opacity: 0; }
+        .o-id {
+            position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none;
+            font: 700 min(40vh, 40vw)/1 var(--mono); color: #fff; background: rgba(0, 0, 0, .7);
+        }
+        .o-id[hidden] { display: none; }
+        /* the control page has gone quiet: a small dot, the text keeps going */
+        .o-lost {
+            position: fixed; top: 10px; right: 10px; width: 10px; height: 10px; border-radius: 50%;
+            background: #ef4444; pointer-events: none;
+        }
+        .o-lost[hidden] { display: none; }
+        @media (prefers-reduced-motion: reduce) { .o-note { transition: none; } }
+    </style>
+</head>
+<body>
+    <div id="screen" role="region" aria-label="Prompter"></div>
+    <div class="o-note" id="note" role="status"></div>
+    <div class="o-id" id="ident" hidden></div>
+    <div class="o-lost" id="lost" hidden></div>
+
+    <script src="prompter/model.js"></script>
+    <script src="prompter/render.js"></script>
+    <script src="prompter/motion.js"></script>
+    <script src="prompter/player.js"></script>
+    <script src="prompter/input.js"></script>
+    <script src="prompter/link.js"></script>
+    <script src="prompter/station.js"></script>
+    <script src="prompter/output.js"></script>
+</body>
+</html>

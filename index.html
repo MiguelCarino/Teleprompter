@@ -36,6 +36,20 @@
         .tp-file { padding: 14px; font-size: var(--fs-sm); }
         .tp-file .dz-hint { margin-top: 4px; }
         .tp-checks { display: flex; flex-direction: column; gap: 10px; }
+        /* ---- Screens: output windows on other monitors (P2) ---- */
+        .tp-scr-note { margin: 0; font-size: var(--fs-sm); color: var(--text-sec); }
+        .tp-scr-list, .tp-outs { display: flex; flex-direction: column; gap: 8px; }
+        .tp-scr-list[hidden] { display: none; }
+        .tp-scr-list .cs-btn { justify-content: space-between; gap: 10px; text-align: left; white-space: normal; }
+        .tp-scr-dim { font-family: var(--mono); font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
+        .tp-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tp-out-row { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius, 6px); }
+        .tp-out-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+        .tp-out-head strong { font-family: var(--mono); color: var(--accent); }
+        .tp-out-head span:not(.tp-badge) { overflow-wrap: anywhere; }
+        .tp-out-opts { display: flex; gap: 16px; flex-wrap: wrap; }
+        .tp-badge { font-family: var(--mono); font-size: var(--fs-label); color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; }
+        [hidden].tp-row, .tp-row [hidden], .tp-hud [hidden], #sameSizeRow[hidden] { display: none; }
         .tp-keys { font-size: var(--fs-label); }
         input[type="file"] { display: none; }
         @media (max-width: 640px) { .ws-toggle-lbl { display: none; } }
@@ -109,6 +123,17 @@
                 <img class="mark" src="logo.svg" alt="" width="32" height="32">
                 <div><h1>Teleprompter</h1><p class="sh-lede" data-i18n>Write or paste your script, then press Present and read.</p></div>
             </div>
+
+            <div class="t-label" id="outHead" data-i18n>Screens</div>
+            <p class="tp-scr-note" id="scrNote" role="status"></p>
+            <div class="tp-scr-list" id="scrList" hidden></div>
+            <div class="tp-row">
+                <button type="button" class="cs-btn" id="scrDetect" hidden data-i18n>Find screens</button>
+                <button type="button" class="cs-btn" id="outOpen" hidden data-i18n>Open an output window</button>
+            </div>
+            <p class="tp-note" id="outNote" role="status"></p>
+            <label class="check" id="sameSizeRow" hidden><input type="checkbox" id="sameSize" checked> <span data-i18n>Same text size on every output</span></label>
+            <div class="tp-outs" id="outList"></div>
 
             <div class="t-label" data-i18n>Replace script</div>
             <div class="dropzone tp-file" id="dropZone" role="button" tabindex="0">
@@ -227,6 +252,7 @@
         <button type="button" class="cs-btn" id="hudPlay" data-i18n>Play</button>
         <span class="tp-hud-read"><span id="hudPos"></span><span id="hudTime"></span><span id="hudSpeed"></span></span>
         <button type="button" class="cs-btn" id="hudFs" data-i18n>Full screen</button>
+        <button type="button" class="cs-btn" id="hudOut" hidden data-i18n>Other screens</button>
         <button type="button" class="cs-btn" id="hudCtl" data-i18n>Controls</button>
         <span class="tp-hud-hint" data-i18n>Space plays and pauses. Esc opens the controls.</span>
     </div>
@@ -236,6 +262,9 @@
     <script src="prompter/motion.js"></script>
     <script src="prompter/player.js"></script>
     <script src="prompter/input.js"></script>
+    <script src="prompter/link.js"></script>
+    <script src="prompter/station.js"></script>
+    <script src="prompter/screens.js"></script>
     <script src="carino-navbar.js" data-app="Teleprompter" data-repo="Teleprompter" defer></script>
     <script src="carino-ui.js" defer></script>
     <script src="carino-lang.js" defer></script>

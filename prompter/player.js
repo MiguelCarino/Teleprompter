@@ -10,7 +10,8 @@
      var player = TP.player.create({ motion, renderer,
          onChange() {…},   // the transport state changed (label, wake lock)
          onFrame() {…},    // at most every 200 ms while moving, and after a relayout
-         onIdle() {…} });  // the loop went still (a good moment to save)
+         onIdle() {…},     // the loop went still (a good moment to save)
+         onTick(t) {…} }); // every frame while moving (a lead output broadcasts)
      // the renderer's onLayout must call player.layout(y)
      player.toggle(); player.nudge(1); player.state();
 
@@ -35,7 +36,7 @@
         var now = o.now || function () { return performance.now(); };
         // comparable across windows (§4.3); each document's now() alone is not
         var wall = o.wall || function () { return (performance.timeOrigin || 0) + performance.now(); };
-        var onChange = o.onChange || noop, onFrame = o.onFrame || noop, onIdle = o.onIdle || noop;
+        var onChange = o.onChange || noop, onFrame = o.onFrame || noop, onIdle = o.onIdle || noop, onTick = o.onTick || noop;
 
         var frame = 0, last = 0, lastUi = 0, countdown = null, countdownSeconds = 0;
 
@@ -74,6 +75,7 @@
             var r = motion.step(dt);
             renderer.setY(yFromPos(motion.pos));
             if (r.ended || r.top || motion.playing !== was) changed();
+            onTick(t);
             if (t - lastUi > 200) { lastUi = t; onFrame(); }
             if (motion.isActive() || countdown) frame = raf(tick) || 1;
             else { last = 0; changed(); onIdle(); }
@@ -119,6 +121,10 @@
             running: running,
             atEnd: atEnd,
             countingDown: function () { return !!countdown; },
+            countdownLeft: function () { return countdown ? countdown.shown : null; },
+            // Stop dead, no ramp and no countdown: this window stops driving
+            // the scroll (another one leads now, P2).
+            halt: function () { clearCountdown(); motion.stop(); },
             setCountdown: function (sec) { countdownSeconds = Math.max(0, +sec || 0); },
             play: play,
             pause: pause,
