@@ -70,6 +70,7 @@
             get min() { return s.min; },
             get max() { return s.max; },
             get speed() { return s.speed; },
+            get ramp() { return RAMP; },
             get direction() { return s.dir; },
             get playing() { return s.playing; },
             get ended() { return s.ended; },

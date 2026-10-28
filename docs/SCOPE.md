@@ -1,6 +1,6 @@
 # Teleprompter — scope for a professional prompter
 
-Rev 4 · 26 October 2026 · status: **approved; P1 and P2 built** (uncommitted). All §9
+Rev 5 · 26 October 2026 · status: **approved; P1, P2 and P3 built**. All §9
 decisions settled by the owner on 26 October 2026. Device input (§5.7, P4)
 and the phone remote are **on hold**: multi-monitor first.
 
@@ -319,6 +319,54 @@ from what exists):
   outputs (not handled). Fullscreen on a chosen monitor and the screen list
   are tested against a simulated two-monitor setup in headless Chromium,
   not real hardware.
+
+**How P3 was built** (26 October 2026):
+
+- **Markup** (`model.js`). `# Heading` (one to six `#`, then a space) and a
+  line of three or more dashes are split out of their paragraph, so they
+  need no blank lines around them. Blocks carry `kind`: text, heading or
+  stop. Neither counts as spoken words. On the outputs a heading is half
+  size with the same line height, so the layout stays in whole lines; with
+  "Headings on the prompter: Hidden" headings leave the layout entirely
+  (every window shares that setting, so paragraph numbers still agree
+  between lead and followers). A stop is one empty line with a rule.
+- **Stops** (`player.js`). The lead starts easing out when the stop is
+  within the ramp's braking distance (v × ramp ÷ 2 for the smoothstep), and
+  lands exactly on it, so the speed never jumps. Play carries on past it.
+  Reverse, nudges and jumps pass stops. The control shows "At a stop".
+- **The in-line rewrite** (`render.js`, `model.carry`). An edit that
+  touches the line on the reading line (typing at either end of it counts)
+  keeps that line of that paragraph on the reading line, whatever it now
+  says; if the paragraph rewraps, only the text below moves. Any other edit
+  maps the anchor as before: ahead of the reader nothing moves, and an edit
+  above it, even earlier in the same paragraph, keeps the same words on the
+  reading line (better for the talent than keeping the line number, which
+  would slide new words under their eyes). Every window applies the rule to
+  its own layout, so the lead output's line is the one kept.
+- **"You are here"** (`here.js`). A backdrop behind a transparent textarea
+  carries the same text in transparent ink, with the paragraph being read
+  tinted and the reading line highlighted. The textarea stays a plain
+  textarea. When the editor is not focused (and not scrolled by hand in the
+  last 3 s) it scrolls to keep the bar in view; while the operator types it
+  never moves.
+- **Jumps.** The jump list (headings and stops; a stop is named by what
+  follows it) sits under the preview, with the current section marked.
+  Keys 1–9 jump to the first nine, from the control or any output.
+  Clicking a paragraph in the preview jumps there. **Change from §5.4:** in
+  the editor a click only places the caret, because clicking to edit must
+  never move the talent; **Ctrl+Enter** (⌘+Enter) jumps to the paragraph at
+  the caret instead.
+- **Timing.** Remaining and total time at the current speed (in the lead's
+  own lines), a target length (m:ss or minutes), how far over or under the
+  take will end (time so far plus time left), and **Fit the speed**: from
+  the top it fits the whole script, mid-take it fits what is left into the
+  time that is left. The speed slider now steps by 0.01 so a fit is close;
+  the arrow keys still step 0.05.
+- Known limits: with the control gone, an output still answers the
+  transport keys but not 1–9 (the jump list lives in the control).
+- Tested in `tests/p3.test.mjs` (markup, the edit rule, stops landing
+  smoothly and exactly) and `tests/p3.e2e.cjs` (44 browser checks,
+  including a portrait output leading).
 
 Testing: `model.js` and the anchor mapping are pure functions and get
 `node --test`, the way Ping does. The two-window sync gets a Playwright suite

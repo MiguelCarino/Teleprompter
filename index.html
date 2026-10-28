@@ -60,6 +60,32 @@
         .tp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         .tp-hint { font-size: var(--fs-sm); color: var(--text-muted); }
         #editor { font-family: var(--sans); font-size: var(--fs-body); line-height: 1.6; min-height: 40dvh; resize: vertical; }
+        /* the "you are here" bar: a backdrop with the same text behind a transparent textarea (prompter/here.js) */
+        .tp-ed { position: relative; background: var(--bg-elev); border-radius: 6px; min-height: 0; }
+        .tp-ed > #editor { position: relative; z-index: 1; display: block; background: transparent; }
+        .tp-ed-back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent;
+            white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
+        .tp-ed-back mark { color: transparent; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+        .tp-ed-back .tp-here-para { background: rgba(234,179,8,0.07); }
+        .tp-ed-back .tp-here-line { background: rgba(234,179,8,0.30); box-shadow: 0 0 0 1px rgba(234,179,8,0.45); }
+        /* jump list (headings and stops) */
+        .tp-jumps { display: flex; flex-direction: column; gap: 4px; max-height: 30dvh; overflow: auto; }
+        .tp-jumps[hidden] { display: none; }
+        .tp-jump { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; padding: 6px 10px;
+            background: transparent; color: var(--text-sec); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+            font-family: var(--sans); font-size: var(--fs-sm); }
+        .tp-jump:hover, .tp-jump:focus-visible { color: var(--text); border-color: var(--accent-dim); }
+        .tp-jump[aria-current="true"] { color: var(--text); border-color: var(--accent); }
+        .tp-jump .kbd { flex: none; }
+        .tp-jump-k { flex: none; min-width: 1.6em; font-family: var(--mono); font-size: var(--fs-label); color: var(--text-muted); }
+        .tp-jump-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tp-jump[data-kind="stop"] .tp-jump-t { font-family: var(--mono); font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.08em; }
+        .tp-jump[data-level="2"] { padding-left: 22px; } .tp-jump[data-level="3"], .tp-jump[data-level="4"], .tp-jump[data-level="5"], .tp-jump[data-level="6"] { padding-left: 34px; }
+        .tp-jump-none { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+        .tp-target { display: flex; gap: 8px; align-items: center; }
+        .tp-target .input { width: 7em; font-variant-numeric: tabular-nums; }
+        #ctlTarget[data-off="over"] { color: var(--warn); } #ctlTarget[data-off="under"], #ctlTarget[data-off="on"] { color: var(--ok); }
+
         .tp-frame {
             --ar: 1.6;
             position: relative; overflow: hidden; background: #000; flex: none;
@@ -71,7 +97,8 @@
         .tp-readout { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-sec); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 16px; }
         .tp-state { font-family: var(--mono); font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-sec); }
         .tp-state[data-state="playing"], .tp-state[data-state="countdown"] { color: var(--ok); }
-        .tp-state[data-state="ended"] { color: var(--accent); }
+        .tp-state[data-state="ended"], .tp-state[data-state="stop"] { color: var(--accent); }
+        .tp-frame .tp-p { cursor: pointer; }
         .tp-note { font-family: var(--mono); font-size: var(--fs-label); color: var(--warn); min-height: 1em; margin: 0; }
         /* a phone's tall window would make the preview taller than the screen */
         @media (max-width: 640px) { .tp-frame { width: min(100%, calc(42dvh * var(--ar))); } }
@@ -79,7 +106,10 @@
             .tp-frame { align-self: flex-start; }
             .tp-pane { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: minmax(0, 1fr); height: 100%; align-content: stretch; }
             .tp-col.tp-edit { height: 100%; }
+            .tp-ed { flex: 1; display: flex; flex-direction: column; }
             #editor { flex: 1; min-height: 0; resize: none; }
+            .tp-col.tp-view { height: 100%; overflow: auto; }
+            .tp-jumps { max-height: none; flex: none; }
         }
 
         /* ---- Present here: the window is the output ---- */
@@ -146,7 +176,15 @@
             <div class="t-label" data-i18n>Reading</div>
             <div class="field">
                 <label for="speed"><span data-i18n>Speed</span> <output id="speedVal" for="speed"></output></label>
-                <input type="range" id="speed" min="0.1" max="3" step="0.05">
+                <input type="range" id="speed" min="0.1" max="3" step="0.01">
+            </div>
+            <div class="field">
+                <label for="target" data-i18n>Target length</label>
+                <div class="tp-target">
+                    <input class="input" id="target" inputmode="decimal" autocomplete="off" placeholder="m:ss" aria-describedby="targetNote">
+                    <button type="button" class="cs-btn" id="fitBtn" data-i18n>Fit the speed</button>
+                </div>
+                <p class="tp-note" id="targetNote" role="status"></p>
             </div>
             <div class="field">
                 <label for="countdown" data-i18n>Countdown</label>
@@ -192,6 +230,13 @@
                     <option value="hidden" data-i18n>Hidden</option>
                 </select>
             </div>
+            <div class="field">
+                <label for="headings" data-i18n>Headings on the prompter</label>
+                <select class="select" id="headings">
+                    <option value="small" data-i18n>Small</option>
+                    <option value="hidden" data-i18n>Hidden</option>
+                </select>
+            </div>
             <div class="tp-checks">
                 <label class="check"><input type="checkbox" id="dim"> <span data-i18n>Dim text already read</span></label>
                 <label class="check"><input type="checkbox" id="mirror"> <span data-i18n>Mirror left to right</span></label>
@@ -206,6 +251,8 @@
                 <dt><span class="kbd">PgUp</span> <span class="kbd">PgDn</span></dt><dd data-i18n>A paragraph back or forward</dd>
                 <dt><span class="kbd">Home</span></dt><dd data-i18n>Back to the top</dd>
                 <dt><span class="kbd">R</span></dt><dd data-i18n>Reverse</dd>
+                <dt><span class="kbd">1</span>–<span class="kbd">9</span></dt><dd data-i18n>Jump to a heading or stop</dd>
+                <dt><span class="kbd">Ctrl</span> <span class="kbd">Enter</span></dt><dd data-i18n>In the script: jump to the paragraph at the cursor</dd>
                 <dt><span class="kbd">F</span></dt><dd data-i18n>Full screen</dd>
                 <dt><span class="kbd">Esc</span></dt><dd data-i18n>Controls</dd>
             </dl>
@@ -220,8 +267,12 @@
                 <div class="tp-head">
                     <label class="t-label" for="editor" data-i18n>Script</label>
                     <span class="tp-hint" data-i18n>Words in [brackets] are cues and show in red.</span>
+                    <span class="tp-hint" data-i18n>A line starting with # is a heading. A line of --- is a stop.</span>
                 </div>
-                <textarea id="editor" class="textarea" data-i18n-placeholder="Type or paste your script here."></textarea>
+                <div class="tp-ed">
+                    <div class="tp-ed-back" id="edBack" aria-hidden="true"></div>
+                    <textarea id="editor" class="textarea" data-i18n-placeholder="Type or paste your script here."></textarea>
+                </div>
             </section>
             <section class="tp-col tp-view">
                 <div class="tp-head">
@@ -237,8 +288,14 @@
                     <button type="button" class="cs-btn" id="nextBtn" data-i18n>Next paragraph</button>
                 </div>
                 <div class="tp-readout">
-                    <span id="ctlPos"></span><span id="ctlTime"></span><span id="ctlSpeed"></span>
+                    <span id="ctlPos"></span><span id="ctlTime"></span><span id="ctlLeft"></span><span id="ctlTotal"></span><span id="ctlTarget"></span><span id="ctlSpeed"></span>
                 </div>
+                <div class="tp-head">
+                    <span class="t-label" data-i18n>Jump to</span>
+                    <span class="tp-hint" data-i18n>Click a paragraph in the preview to jump there.</span>
+                </div>
+                <div class="tp-jumps" id="jumps"></div>
+                <p class="tp-jump-none" id="jumpsNone" data-i18n>No headings or stops yet.</p>
             </section>
         </div>
     </div>
@@ -250,7 +307,7 @@
 
     <div class="tp-hud" id="hud" role="toolbar" aria-label="Prompter controls" data-i18n-aria-label="Prompter controls">
         <button type="button" class="cs-btn" id="hudPlay" data-i18n>Play</button>
-        <span class="tp-hud-read"><span id="hudPos"></span><span id="hudTime"></span><span id="hudSpeed"></span></span>
+        <span class="tp-hud-read"><span id="hudPos"></span><span id="hudTime"></span><span id="hudLeft"></span><span id="hudSpeed"></span></span>
         <button type="button" class="cs-btn" id="hudFs" data-i18n>Full screen</button>
         <button type="button" class="cs-btn" id="hudOut" hidden data-i18n>Other screens</button>
         <button type="button" class="cs-btn" id="hudCtl" data-i18n>Controls</button>
@@ -265,6 +322,7 @@
     <script src="prompter/link.js"></script>
     <script src="prompter/station.js"></script>
     <script src="prompter/screens.js"></script>
+    <script src="prompter/here.js"></script>
     <script src="carino-navbar.js" data-app="Teleprompter" data-repo="Teleprompter" defer></script>
     <script src="carino-ui.js" defer></script>
     <script src="carino-lang.js" defer></script>

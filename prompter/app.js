@@ -33,7 +33,7 @@
 
     // ---- settings ----
     var RANGE = {
-        speed: { min: 0.1, max: 3, step: 0.05, def: 0.6 },
+        speed: { min: 0.1, max: 3, step: 0.01, def: 0.6 },   // the keys step 0.05; "fit" needs finer
         size: { min: 24, max: 300, step: 2, def: Math.round(clamp(window.innerWidth / 12, 40, 160) / 2) * 2 },
         spacing: { min: 1, max: 2, step: 0.05, def: 1.25 },
         margin: { min: 0, max: 30, step: 1, def: 8 },
@@ -43,6 +43,7 @@
         font: ['display', 'sans', 'mono'],
         lineStyle: ['arrows', 'line', 'band', 'hidden'],
         countdown: ['0', '3', '5', '10'],
+        headings: ['small', 'hidden'],
     };
     var FLAGS = ['dim', 'mirror', 'flip'];
     function snap(k, v) {
@@ -58,6 +59,7 @@
         Object.keys(CHOICE).forEach(function (k) { s[k] = CHOICE[k].indexOf(String(got[k])) >= 0 ? String(got[k]) : CHOICE[k][0]; });
         FLAGS.forEach(function (k) { s[k] = got[k] === true; });
         s.sameSize = got.sameSize !== false;   // one text size on every output, unless asked
+        s.target = +got.target > 0 && +got.target < 360000 ? Math.round(+got.target) : 0;   // seconds; 0 = none
         return s;
     }
     var settings = loadSettings();
@@ -65,11 +67,14 @@
         return {
             size: settings.size, spacing: settings.spacing, margin: settings.margin, font: settings.font,
             mirror: settings.mirror, flip: settings.flip, linePos: settings.linePos, lineStyle: settings.lineStyle, dim: settings.dim,
+            headings: settings.headings,
         };
     }
 
     // ---- engine: one renderer (the output), its motion, the frame loop ----
     var screen = $('screen'), frame = $('frame'), hud = $('hud'), editor = $('editor');
+    // the "you are here" bar behind the editor (P3)
+    var here = TP.here.create(editor, $('edBack'), { mapOffset: TP.model.mapOffset });
     var motion = TP.motion.create({ speed: settings.speed });
     var model = TP.model.parse('');
     var isSample = true;
@@ -164,6 +169,7 @@
         }
         applyOwnSettings();
         renderer.check();
+        if (!present) { here.refresh(); updateHere(); }
     }
     // The preview is the output at the window's size, scaled into the frame.
     function fitPreview() {
@@ -223,14 +229,46 @@
         return num(settings.speed, 2) + ' ' + tt('lines/s') + ' · ≈ ' + w + ' ' + tt('WPM');
     }
     function setLabel(el, key) { el.dataset.i18nKey = key; el.textContent = tt(key); }
+    // Timing (§5.5), in the lead's own line units: what is left at the
+    // current speed, the whole script at that speed, and against a target
+    // the finish projected from the time so far plus what is left.
+    function timing(st) {
+        var sp = st.speed || settings.speed, sl = st.sl || 0;
+        var left = sl * (1 - st.progress) / sp, total = sl / sp;
+        return { left: left, total: total, off: settings.target ? st.elapsed + left - settings.target : null };
+    }
     function updateReadouts() {
-        var st = station.status();
+        var st = station.status(), tm = timing(st);
         var pos = Math.round(st.progress * 100) + ' %', time = clock(st.elapsed), sp = speedText();
         $('hudPos').textContent = pos; $('ctlPos').textContent = pos;
         $('hudTime').textContent = time; $('ctlTime').textContent = time;
+        $('hudLeft').textContent = '−' + clock(tm.left);
+        $('ctlLeft').textContent = tt('≈ {t} left').replace('{t}', clock(tm.left));
+        $('ctlTotal').textContent = tt('≈ {t} in all').replace('{t}', clock(tm.total));
+        var tg = $('ctlTarget');
+        if (tm.off == null) { tg.textContent = ''; tg.removeAttribute('data-off'); }
+        else if (Math.abs(tm.off) < 2) { tg.textContent = tt('On target'); tg.dataset.off = 'on'; }
+        else {
+            tg.dataset.off = tm.off > 0 ? 'over' : 'under';
+            tg.textContent = (tm.off > 0 ? tt('{t} over target') : tt('{t} under target')).replace('{t}', clock(Math.abs(tm.off)));
+        }
         $('hudSpeed').textContent = sp; $('ctlSpeed').textContent = sp;
         $('speedVal').textContent = sp;
         $('hudPos').title = tt('Position'); $('hudTime').title = tt('Elapsed'); $('hudSpeed').title = tt('Speed');
+        $('hudLeft').title = tt('Remaining'); $('ctlLeft').title = tt('Remaining');
+        updateHere();
+    }
+    // the editor's bar, and the jump list's current entry
+    function updateHere() {
+        if (mode !== 'control' || !marks) return;
+        here.set(renderer.reading(), model.text);
+        var a = renderer.anchor().offset, cur = -1;
+        for (var i = 0; i < marks.length; i++) if (marks[i].offset <= a) cur = i;
+        if (cur !== jumpCur) {
+            jumpCur = cur;
+            var bs = $('jumps').children;
+            for (i = 0; i < bs.length; i++) bs[i].setAttribute('aria-current', i === cur ? 'true' : 'false');
+        }
     }
     function updateUi() {
         var st = station.status(), run = st.running, end = st.ended, countdown = st.countdown;
@@ -242,10 +280,10 @@
             b.setAttribute('aria-pressed', run ? 'true' : 'false');
         });
         $('revBtn').setAttribute('aria-pressed', st.dir < 0 ? 'true' : 'false');
-        var state = countdown ? 'countdown' : st.playing ? 'playing' : end ? 'ended' : 'paused';
+        var state = countdown ? 'countdown' : st.playing ? 'playing' : end ? 'ended' : st.stop ? 'stop' : 'paused';
         var stEl = $('ctlState');
         stEl.dataset.state = state;
-        stEl.textContent = tt({ countdown: 'Countdown', playing: st.dir < 0 ? 'Playing in reverse' : 'Playing', ended: 'End of script', paused: 'Paused' }[state]);
+        stEl.textContent = tt({ countdown: 'Countdown', playing: st.dir < 0 ? 'Playing in reverse' : 'Playing', ended: 'End of script', stop: 'At a stop', paused: 'Paused' }[state]);
         updateReadouts();
     }
     function updateOutputs() {
@@ -278,16 +316,17 @@
         return { offset: b.start + Math.round(clamp(n.rel, 0, 1) * (b.end - b.start)), frac: clamp(+n.frac, -1, 2) };
     }
 
-    // An edit: re-render, carrying the anchor through the change.
+    // An edit: re-render, carrying the reader through the change (an edit
+    // on the line being read rewrites it in place, render.js).
     function applyEditor() {
         clearTimeout(renderTimer);
         var text = editor.value;
         if (text === model.text) return;
-        var a = renderer.anchor();
-        var mapped = { offset: TP.model.mapOffset(model.text, text, a.offset), frac: a.frac };
-        model = TP.model.parse(text);
-        renderer.setModel(model, mapped);
+        var next = TP.model.parse(text), c = TP.model.carry(model, next, renderer.anchor());
+        model = next;
+        renderer.setModel(model, c.anchor, c.edit);
         sendScript();
+        renderJumps();
         updateUi();
     }
     editor.addEventListener('input', function () {
@@ -306,6 +345,7 @@
         sendScript(true);
         act('top');
         saveScript();
+        renderJumps();
     }
     var note = function (msg) { $('fileNote').textContent = msg || ''; };
     function isTextFile(f) {
@@ -360,6 +400,7 @@
             settings[k] = CHOICE[k].indexOf(sel.value) >= 0 ? sel.value : CHOICE[k][0];
             if (k === 'countdown') player.setCountdown(+settings.countdown);
             else applyOwnSettings();
+            if (k === 'headings') updateHere();
             pushSettings();
             updateReadouts(); saveSettings();
         });
@@ -390,6 +431,98 @@
     onClick('nextBtn', function () { act('paragraph', 1); });
     onClick('revBtn', function () { act('reverse'); });
     onClick('hudOut', offerOutputs);
+
+    // ---- jumps (P3, §5.4): headings and stops, keys 1–9, a click in the
+    // preview, Ctrl+Enter in the editor ----
+    var marks = [], jumpCur = -2, jumpsKey = '';
+    function jump(offset) { act('jump', offset); poke(); }
+    // what follows a stop says which one it is: a heading, or first words
+    function stopLabel(mk, next) {
+        var b = model.blocks[mk.block + 1], words = '';
+        if (next && next.kind === 'heading' && next.block === mk.block + 1) words = next.label;
+        else if (b && b.kind === 'text') {
+            words = model.text.slice(b.start, b.end).replace(/\s+/g, ' ');
+            if (words.length > 48) words = words.slice(0, 48).replace(/\s\S*$/, '') + ' …';
+        }
+        return tt('Stop') + (words ? ' · ' + words : '');
+    }
+    function renderJumps() {
+        marks = TP.model.marks(model);
+        var labels = marks.map(function (mk, i) { return mk.kind === 'stop' ? stopLabel(mk, marks[i + 1]) : mk.label; });
+        var key = marks.map(function (mk, i) { return mk.offset + ':' + labels[i]; }).join('\n') + lang();
+        if (key === jumpsKey) return;
+        jumpsKey = key;
+        var box = $('jumps');
+        box.textContent = '';
+        marks.forEach(function (mk, i) {
+            var b = el('button', 'tp-jump');
+            b.type = 'button';
+            b.dataset.kind = mk.kind;
+            if (mk.level) b.dataset.level = mk.level;
+            b.appendChild(el('span', 'tp-jump-k', i < 9 ? String(i + 1) : ''));
+            b.appendChild(el('span', 'tp-jump-t', labels[i]));
+            b.title = labels[i];
+            b.addEventListener('click', function (e) { jump(marks[i] ? marks[i].offset : mk.offset); if (e.detail && b.blur) b.blur(); });
+            box.appendChild(b);
+        });
+        box.hidden = !marks.length;
+        $('jumpsNone').hidden = !!marks.length;
+        jumpCur = -2;
+        updateHere();
+    }
+    // A click on a paragraph of the preview sends the prompter there.
+    screen.addEventListener('click', function (e) {
+        if (mode !== 'control') return;
+        var off = renderer.offsetAt(e.target);
+        if (off != null) jump(off);
+    });
+    // Ctrl+Enter (⌘+Enter) in the editor: the paragraph at the cursor.
+    editor.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
+        e.preventDefault();
+        applyEditor();
+        var B = model.blocks, k = editor.selectionStart, i;
+        if (!B.length) return;
+        for (i = 0; i < B.length; i++) if (k <= B[i].end) break;
+        jump(B[Math.min(i, B.length - 1)].start);
+    });
+
+    // ---- target length and "fit the speed" (§5.5) ----
+    function parseLength(v) {
+        v = String(v || '').trim().replace(',', '.');
+        if (!v) return 0;
+        var m = /^(?:(\d+):)?(\d+):(\d{1,2})$/.exec(v);
+        if (m) return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
+        if (/^\d+(\.\d+)?$/.test(v)) return Math.round(parseFloat(v) * 60);   // plain minutes
+        return null;
+    }
+    function targetNote(msg) { $('targetNote').textContent = msg || ''; }
+    var targetIn = $('target');
+    targetIn.value = settings.target ? clock(settings.target) : '';
+    targetIn.addEventListener('change', function () {
+        var v = parseLength(targetIn.value);
+        if (v == null || v >= 360000) { targetNote(tt('Write the length as minutes and seconds, like 3:30.')); return; }
+        targetNote('');
+        settings.target = v;
+        targetIn.value = v ? clock(v) : '';
+        saveSettings(); updateReadouts();
+    });
+    // The speed that ends the script on the target: the whole script from
+    // the top, or what is left in the time that is left, mid-take.
+    function fitSpeed() {
+        if (!settings.target) { targetNote(tt('Set a target length first.')); targetIn.focus(); return; }
+        var st = station.status(), fresh = st.progress < 0.001;
+        var lines = (st.sl || 0) * (fresh ? 1 : 1 - st.progress), time = fresh ? settings.target : settings.target - st.elapsed;
+        if (!(lines > 0)) { targetNote(''); return; }
+        if (!(time > 0)) { targetNote(tt('The target time has already passed.')); return; }
+        var v = lines / time, r = RANGE.speed;
+        targetNote(v < r.min || v > r.max ? tt('That needs a speed the slider does not reach; it is set as close as it goes.') : '');
+        settings.speed = snap('speed', v);
+        $('speed').value = settings.speed;
+        setSpeed();
+        saveSettings(); updateUi();
+    }
+    onClick('fitBtn', fitSpeed);
     // A checkbox, slider or select changed with the mouse lets go of focus
     // too; changed from the keyboard, it keeps it.
     var byPointer = false;
@@ -417,7 +550,10 @@
             case 'reverse': act('reverse'); break;
             case 'fullscreen': if (remote) return false; toggleFullscreen(); break;
             case 'escape': if (remote || mode !== 'present') return false; setMode('control'); break;
-            default: return false;
+            default:
+                var mk = /^jump[1-9]$/.test(action) ? marks[+action.slice(4) - 1] : null;
+                if (!mk) return false;
+                act('jump', mk.offset);
         }
         if (!remote) poke();
     }
@@ -696,6 +832,7 @@
         a = { offset: clamp(+pos.anchor.offset, 0, text.length), frac: clamp(+pos.anchor.frac, -1, 2) };
     }
     renderer.setModel(model, a);
+    renderJumps();
     updateOutputs(); updateFsLabel(); updateUi();
     startLink();
     poke(4000);
@@ -715,6 +852,7 @@
                 sendScript();
             }
         }
+        renderJumps();
         pushSettings(); renderOutputs();
         updateOutputs(); updateFsLabel(); updateUi();
     };
@@ -730,5 +868,9 @@
         leadId: function () { return leadId; },
         screens: function () { return scr.state(); },
         openOutput: openOutput,
+        here: here,
+        marks: function () { return marks.slice(); },
+        jump: jump,
+        model: function () { return model; },
     };
 })();

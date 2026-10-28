@@ -16,7 +16,9 @@
      player.toggle(); player.nudge(1); player.state();
 
    The countdown runs only when playback starts from the top, so resuming
-   mid-take never waits. Clocks are injectable for tests (raf, now, wall).
+   mid-take never waits. A stop (a `---` line, P3) pauses playback by
+   itself: the motion starts easing out early enough to come to rest with
+   the stop on the reading line. Playing again carries on past it. Clocks are injectable for tests (raf, now, wall).
 
    Also here: wakeLock(), the Screen Wake Lock held while playing, which
    every lead output needs too. Classic script: window.TP.player in a page,
@@ -39,11 +41,36 @@
         var onChange = o.onChange || noop, onFrame = o.onFrame || noop, onIdle = o.onIdle || noop, onTick = o.onTick || noop;
 
         var frame = 0, last = 0, lastUi = 0, countdown = null, countdownSeconds = 0;
+        var braking = null, atStop = false;   // the stop being eased into; resting on one
 
         function posFromY(y) { return (y - renderer.topY()) / renderer.lineHeight(); }
         function yFromPos(p) { return renderer.topY() + p * renderer.lineHeight(); }
         function changed() { renderer.setEnded(motion.ended); onChange(); }
         function clearCountdown() { if (countdown) { countdown = null; renderer.setCountdown(null); } }
+        // any transport action lets go of a stop
+        function freeStop() { braking = null; atStop = false; }
+
+        // The first stop ahead of `pos` (lines), or null. Only forward
+        // playback stops; reverse, nudges and seeks pass them.
+        function stopAfter(pos) {
+            var ys = renderer.stopYs ? renderer.stopYs() : [];
+            for (var i = 0; i < ys.length; i++) { var s = posFromY(ys[i]); if (s > pos + 1e-3) return s; }
+            return null;
+        }
+        // After a step: start easing out when the stop is within the ramp's
+        // braking distance (v × ramp / 2 for a smoothstep), and land on it.
+        function checkStop(before) {
+            if (braking == null && motion.playing && motion.direction > 0 && motion.velocity > 0) {
+                var s = stopAfter(before);
+                if (s != null && motion.pos + motion.velocity * motion.ramp / 2 >= s - 1e-6) { motion.pause(); braking = s; }
+            }
+            if (braking != null && (motion.pos >= braking - 1e-6 || !motion.isActive())) {
+                motion.stop(); motion.setPos(braking);
+                braking = null; atStop = true;
+                return true;
+            }
+            return false;
+        }
 
         // The renderer re-anchored (size, font, window, text): same words,
         // new line units. At the end of the script the end state survives
@@ -71,10 +98,11 @@
                 if (left <= 0) { clearCountdown(); motion.play(); changed(); }
                 else if (left !== countdown.shown) { countdown.shown = left; renderer.setCountdown(left); }
             }
-            var was = motion.playing;
+            var was = motion.playing, before = motion.pos;
             var r = motion.step(dt);
+            var stopped = checkStop(before);
             renderer.setY(yFromPos(motion.pos));
-            if (r.ended || r.top || motion.playing !== was) changed();
+            if (r.ended || r.top || stopped || motion.playing !== was) changed();
             onTick(t);
             if (t - lastUi > 200) { lastUi = t; onFrame(); }
             if (motion.isActive() || countdown) frame = raf(tick) || 1;
@@ -85,13 +113,14 @@
         function atEnd() { return motion.ended && motion.direction > 0; }
         function atTop() { return motion.pos <= motion.min + 1e-6; }
         function top() {
-            clearCountdown();
+            clearCountdown(); freeStop();
             motion.stop(); motion.setDirection(1); motion.seek(0); motion.resetElapsed();
             renderer.setY(yFromPos(0));
             changed(); onIdle();
         }
         function play() {
             if (countdown) return;
+            freeStop();
             if (atEnd()) return top();
             if (countdownSeconds > 0 && atTop() && !countdown) {
                 countdown = { until: now() + countdownSeconds * 1000, shown: countdownSeconds };
@@ -99,7 +128,14 @@
             } else motion.play();
             kick(); changed();
         }
-        function pause() { clearCountdown(); motion.pause(); kick(); changed(); }
+        function pause() { clearCountdown(); freeStop(); motion.pause(); kick(); changed(); }
+        // Go to an offset in the script (a heading, a stop, a clicked
+        // paragraph): its line eases onto the reading line; playing goes on.
+        function jumpTo(offset) {
+            freeStop();
+            motion.seek(posFromY(renderer.yFor({ offset: +offset || 0, frac: 0.5 })), true);
+            kick(); changed();
+        }
         function paragraph(dir) {
             var ys = renderer.paraYs(), y = renderer.y(), lh = renderer.lineHeight(), target = null, i;
             if (dir < 0) {
@@ -109,6 +145,7 @@
                 for (i = 0; i < ys.length; i++) if (ys[i] > y + lh * 0.25) { target = ys[i]; break; }
                 if (target == null) target = renderer.endY();
             }
+            freeStop();
             motion.seek(posFromY(target), true);
             kick(); changed();
         }
@@ -124,15 +161,17 @@
             countdownLeft: function () { return countdown ? countdown.shown : null; },
             // Stop dead, no ramp and no countdown: this window stops driving
             // the scroll (another one leads now, P2).
-            halt: function () { clearCountdown(); motion.stop(); },
+            halt: function () { clearCountdown(); freeStop(); motion.stop(); },
+            atStop: function () { return atStop; },
             setCountdown: function (sec) { countdownSeconds = Math.max(0, +sec || 0); },
             play: play,
             pause: pause,
             toggle: function () { if (running()) pause(); else play(); },
             top: top,
-            nudge: function (lines) { motion.nudge(lines); kick(); changed(); },
+            nudge: function (lines) { freeStop(); motion.nudge(lines); kick(); changed(); },
             paragraph: paragraph,
-            reverse: function () { motion.reverse(); kick(); changed(); },
+            jumpTo: jumpTo,
+            reverse: function () { freeStop(); motion.reverse(); kick(); changed(); },
             setSpeed: function (v) { var sp = motion.setSpeed(v); kick(); onFrame(); return sp; },
             posFromY: posFromY,
             yFromPos: yFromPos,

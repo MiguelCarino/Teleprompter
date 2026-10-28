@@ -4,7 +4,8 @@
      TP.input.attach(document, function (action, e) { … return false if unused; });
 
    Actions: toggle, faster, slower, back, forward, prevPara, nextPara, top,
-   reverse, fullscreen, escape. The same map runs in the control page and
+   reverse, fullscreen, escape, and jump1 … jump9 (keys 1–9: the first nine
+   headings and stops, P3). The same map runs in the control page and
    (P2) in every output window.
 
    A key is left alone when the focused control needs it: text entry keeps
@@ -29,6 +30,7 @@
         'f': 'fullscreen', 'F': 'fullscreen',
         'Escape': 'escape',
     };
+    for (var n = 1; n <= 9; n++) KEYS[String(n)] = 'jump' + n;
 
     // The action for a keydown, or null. Pure: it reads key and modifiers.
     function actionFor(e) {

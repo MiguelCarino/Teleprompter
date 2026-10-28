@@ -130,7 +130,7 @@ function rig() {
     };
     const calls = [];
     const p = {
-        running: () => m.playing, atEnd: () => false, countdownLeft: () => null, countingDown: () => false,
+        running: () => m.playing, atEnd: () => false, atStop: () => false, countdownLeft: () => null, countingDown: () => false,
         halt() { calls.push('halt'); m.playing = false; }, play() { calls.push('play'); m.playing = true; },
         kick() { calls.push('kick'); }, layout(y) { calls.push('layout:' + y); }, posFromY: (y) => y / 10,
         toggle() { calls.push('toggle'); }, top() { calls.push('top'); }, nudge(n) { calls.push('nudge:' + n); },

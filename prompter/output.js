@@ -66,10 +66,14 @@
             case 'script':
                 if (m.text === model.text) break;
                 // a replaced script starts at the top; an edit keeps the place
-                var a = m.reset ? null : model.text ? renderer.anchor() : (m.anchor || null);
-                if (!m.reset && model.text && a) a = { offset: TP.model.mapOffset(model.text, m.text, a.offset), frac: a.frac };
-                model = TP.model.parse(m.text);
-                renderer.setModel(model, a);
+                // (and an edit on the line being read rewrites it in place)
+                var next = TP.model.parse(m.text);
+                if (m.reset || !model.text) renderer.setModel(next, m.reset ? null : (m.anchor || null));
+                else {
+                    var c = TP.model.carry(model, next, renderer.anchor());
+                    renderer.setModel(next, c.anchor, c.edit);
+                }
+                model = next;
                 break;
             case 'settings':
                 if (m.s) renderer.setSettings(m.s);

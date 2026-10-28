@@ -25,9 +25,21 @@
    line units, which is what motion.js counts in.
 
      var r = TP.render.create(el, { onLayout(y) {…} });
-     r.setSettings({ size, spacing, margin, font, mirror, flip, linePos, lineStyle, dim });
+     r.setSettings({ size, spacing, margin, font, mirror, flip, linePos, lineStyle, dim, headings });
      r.setModel(TP.model.parse(text), anchor);   // anchor optional
+     r.setModel(next, c.anchor, c.edit);         // an edit (TP.model.carry)
      r.setY(y);  r.anchor();  r.yFor(anchor);  r.topY();  r.endY();  r.paraYs();  r.scrollLines();
+     r.stopYs();  r.reading();  r.offsetAt(node);
+
+   Headings show smaller (same line height, so the layout stays in line
+   units) or, with headings: 'hidden', are left out of the layout. A stop
+   is one empty line with a rule across it.
+
+   An edit that touches the line on the reading line rewrites that line in
+   place (§5.3): the reader stays on the same line of the same paragraph,
+   whatever it now says, and only the text below moves if the paragraph
+   wraps to more or fewer lines. Any other edit keeps the anchor (mapped
+   through the edit), so the words on the reading line stay put.
 
    The layout math below (paraIndexAt / anchorFromY / yFromAnchor) is pure
    and tested in node; the DOM half feeds it measurements. Classic script:
@@ -144,6 +156,17 @@
         var ppl = i ? (same && loc.ppl ? loc.ppl : P[i - 1].lines) : 0;
         return P[i].top + mapRel(loc.rel, pl, P[i].lines, ppl, i ? P[i - 1].lines : 0, i === P.length - 1) * L.lh;
     }
+    // ---- the in-line rewrite (P3, §5.3) ----
+    // Does an edit [p, oldEnd) touch the line [ls, le)? Typing at either
+    // end of the line counts: it is the same caret position.
+    function touchesLine(d, ls, le) { return d.p <= le && d.oldEnd >= ls; }
+    // The same line (and the same point in it) of a paragraph that now
+    // wraps to `lines` lines: the last line if it has fewer now.
+    function keepLine(rel, lines) {
+        var li = Math.floor(rel), f = rel - li;
+        return Math.min(li, Math.max(0, lines - 1)) + f;
+    }
+
     function yFromAnchor(L, a, lineOf) {
         var P = L.paras, lh = L.lh;
         if (!P.length) return a.frac * lh;
@@ -162,7 +185,7 @@
         mono: "var(--mono, 'IBM Plex Mono', ui-monospace, monospace)",
     };
     var STYLES = ['line', 'arrows', 'band', 'hidden'];
-    var DEFAULTS = { size: 96, spacing: 1.25, margin: 8, font: 'display', mirror: false, flip: false, linePos: 40, lineStyle: 'arrows', dim: false };
+    var DEFAULTS = { size: 96, spacing: 1.25, margin: 8, font: 'display', mirror: false, flip: false, linePos: 40, lineStyle: 'arrows', dim: false, headings: 'small' };
 
     // The output's own CSS, injected once per document so a chrome-less
     // output page needs nothing but this file. White on black, no gold.
@@ -175,6 +198,10 @@
         + 'white-space:pre-wrap;overflow-wrap:anywhere;-webkit-font-smoothing:antialiased;}'
         + '.tp-p{margin:0 0 var(--tp-lh);}'
         + '.tp-cue{color:var(--tp-cue);}'
+        // a heading keeps the line height, so it still fills whole lines
+        + '.tp-h{font-size:calc(var(--tp-size)*.5);font-weight:600;letter-spacing:.08em;color:#9a9a9a;}'
+        + '.tp-stop{position:relative;height:var(--tp-lh);}'
+        + '.tp-stop::before{content:"";position:absolute;left:12%;right:12%;top:calc(50% - 2px);height:4px;border-radius:2px;background:#6b6b6b;}'
         + '.tp-end{margin:0;font-family:var(--mono,monospace);font-size:max(14px,calc(var(--tp-size)*.3));letter-spacing:.14em;'
         + 'text-transform:uppercase;color:#8a8a8a;border-top:2px solid #3a3a3a;padding-top:calc(var(--tp-lh)*.3);}'
         + '.tp-out.tp-ended .tp-end{color:#fff;border-top-color:#fff;}'
@@ -222,7 +249,7 @@
         var paras = [];                 // [{ el, text, start, end, segs: [{ node, start, end }] }]
         var L = { lh: 100, paras: [] }; // measured layout
         var W = 0, H = 0, R = 0, trackH = -1, totalLines = 0;
-        var y = 0, anchor = { offset: 0, frac: 0.5 };
+        var y = 0, anchor = { offset: 0, frac: 0.5 }, stops = [];
         var memo = null;                // last line looked up by anchorFromY
         var range = doc.createRange();
 
@@ -275,6 +302,8 @@
             });
             trackH = track.offsetHeight;
             memo = null;
+            stops = [];
+            for (var i = 0; i < paras.length; i++) if (paras[i].kind === 'stop') stops.push(L.paras[i].top + lh / 2);
             container.style.setProperty('--tp-r', R + 'px');
         }
         function layoutChanged() {
@@ -305,14 +334,14 @@
         }
 
         function makePara(text, b) {
-            var p = el('p', 'tp-p'), segs = [];
+            var p = el('p', 'tp-p' + (b.kind === 'heading' ? ' tp-h' : b.kind === 'stop' ? ' tp-stop' : '')), segs = [];
             b.runs.forEach(function (r) {
                 var tn = doc.createTextNode(text.slice(r.start, r.end));
                 if (r.cue) { var sp = el('span', 'tp-cue'); sp.appendChild(tn); p.appendChild(sp); }
                 else p.appendChild(tn);
                 segs.push({ node: tn, start: r.start, end: r.end });
             });
-            return { el: p, text: text.slice(b.start, b.end), start: b.start, end: b.end, segs: segs };
+            return { el: p, text: text.slice(b.start, b.end), kind: b.kind || 'text', start: b.start, end: b.end, segs: segs };
         }
         function shift(p, d) {
             if (!d) return p;
@@ -325,8 +354,13 @@
         // offsets move by the edit's length). A paragraph's runs depend on
         // its text alone, so the same text means the same DOM. This keeps a
         // keystroke in a long script cheap while the text is moving.
+        // The blocks on show: hidden headings take no room at all.
+        function shown() {
+            if (settings.headings !== 'hidden') return model.blocks;
+            return model.blocks.filter(function (b) { return b.kind !== 'heading'; });
+        }
         function build() {
-            var text = model.text, nb = model.blocks, old = paras;
+            var text = model.text, nb = shown(), old = paras;
             var n = Math.min(old.length, nb.length), i = 0, j = 0;
             while (i < n && old[i].start === nb[i].start && old[i].end === nb[i].end
                 && old[i].text === text.slice(nb[i].start, nb[i].end)) i++;
@@ -354,19 +388,55 @@
         } else if (doc.defaultView) doc.defaultView.addEventListener('resize', check);
         if (doc.fonts && doc.fonts.addEventListener) doc.fonts.addEventListener('loadingdone', relayout);
 
+        // Where the reading line is in the text: its paragraph and the line
+        // on it, as offsets (the control's "you are here" bar).
+        function lineRange(i, li) {
+            var n = L.paras[i].lines;
+            return [li === 0 ? paras[i].start : lineStart(i, li), li + 1 < n ? lineStart(i, li + 1) : paras[i].end];
+        }
+        function reading() {
+            if (!paras.length) return null;
+            var loc = locate(L, y), i = loc.para, n = L.paras[i].lines;
+            // in the gap below a paragraph the next one is coming up
+            if (loc.rel >= n && i < paras.length - 1) return { para: [paras[i + 1].start, paras[i + 1].end], line: lineRange(i + 1, 0), gap: true };
+            var li = clamp(Math.floor(loc.rel), 0, n - 1);
+            return { para: [paras[i].start, paras[i].end], line: lineRange(i, li), gap: loc.rel < 0 || loc.rel >= n };
+        }
+
+        // An edit (model.carry): on the reading line, keep that line; else
+        // keep the anchor. Measured before the DOM changes.
+        function lockFor(edit) {
+            if (!edit || edit.block < 0 || !paras.length) return null;
+            var ob = model.blocks[edit.block];
+            if (!ob) return null;
+            var loc = locate(L, y), i = loc.para;
+            if (paras[i].start !== ob.start || loc.rel < 0 || loc.rel >= L.paras[i].lines) return null;
+            var r = lineRange(i, Math.floor(loc.rel));
+            return touchesLine(edit.d, r[0], r[1]) ? loc : null;
+        }
+
         var api = {
             setSettings: function (patch) {
+                var hid = settings.headings;
                 Object.assign(settings, patch || {});
                 applySettings();
+                if (settings.headings !== hid) build();
                 relayout();
             },
             settings: function () { return Object.assign({}, settings); },
             // New text. Without an anchor it starts at the top.
-            setModel: function (m, a) {
+            setModel: function (m, a, edit) {
+                var lock = lockFor(edit);
                 model = m || { text: '', blocks: [], words: 0 };
                 anchor = a ? { offset: a.offset, frac: a.frac } : { offset: 0, frac: 0.5 };
                 build();
-                relayout();
+                if (!lock) return relayout();
+                measure();
+                var i = clamp(lock.para, 0, L.paras.length - 1);
+                y = L.paras[i].top + keepLine(lock.rel, L.paras[i].lines) * L.lh;
+                anchor = anchorFromY(L, y, lineStart);
+                write();
+                if (opts.onLayout) opts.onLayout(y);
             },
             // Put content y on the reading line. Returns false when the layout
             // had changed under it: the renderer re-anchored instead (and
@@ -394,6 +464,14 @@
             place: function (loc) { return place(L, loc); },
             advance: function (loc, d) { return advance(L, loc, d); },
             paraYs: function () { return L.paras.map(function (p) { return p.top + L.lh / 2; }); },
+            // y of each stop's line centred on the reading line
+            stopYs: function () { return stops.slice(); },
+            reading: reading,
+            // the start offset of the paragraph holding a node (a click)
+            offsetAt: function (node) {
+                for (var i = 0; i < paras.length; i++) if (paras[i].el === node || paras[i].el.contains(node)) return paras[i].start;
+                return null;
+            },
             lineCount: function () { return totalLines; },
             words: function () { return model.words; },
             setCountdown: function (n) {
@@ -416,5 +494,6 @@
         paraIndexAt: paraIndexAt, anchorFromY: anchorFromY, yFromAnchor: yFromAnchor,
         topYOf: topYOf, endYOf: endYOf, scrollLines: scrollLines,
         locate: locate, mapRel: mapRel, advance: advance, place: place,
+        touchesLine: touchesLine, keepLine: keepLine,
     };
 });

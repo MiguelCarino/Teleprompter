@@ -53,6 +53,7 @@
                 running: player.running(),
                 dir: motion.direction,
                 ended: player.atEnd(),
+                stop: player.atStop(),
                 countdown: player.countdownLeft(),
                 elapsed: motion.elapsed,
                 progress: motion.progress,
@@ -144,12 +145,14 @@
             if (lead || !pos) {
                 return {
                     lead: lead, running: player.running(), playing: motion.playing, dir: motion.direction,
-                    ended: player.atEnd(), countdown: player.countingDown(), elapsed: motion.elapsed, progress: motion.progress,
+                    ended: player.atEnd(), stop: player.atStop(), countdown: player.countingDown(), elapsed: motion.elapsed, progress: motion.progress,
+                    sl: isFinite(motion.max) ? motion.max : 0, speed: motion.speed,
                 };
             }
             return {
                 lead: false, running: !!pos.running, playing: !!pos.playing, dir: pos.dir || 1,
-                ended: !!pos.ended, countdown: pos.countdown != null, elapsed: pos.elapsed || 0, progress: pos.progress || 0,
+                ended: !!pos.ended, stop: !!pos.stop, countdown: pos.countdown != null, elapsed: pos.elapsed || 0, progress: pos.progress || 0,
+                sl: pos.sl || 0, speed: pos.speed || motion.speed,
             };
         }
 
@@ -177,6 +180,7 @@
             case 'paragraph': player.paragraph(+arg < 0 ? -1 : 1); break;
             case 'reverse': player.reverse(); break;
             case 'speed': player.setSpeed(+arg); break;
+            case 'jump': player.jumpTo(+arg); break;
             default: return false;
         }
         return true;
