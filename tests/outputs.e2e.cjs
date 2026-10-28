@@ -84,6 +84,10 @@ const FAKE_SCREENS = () => {
         ok('control follows', await page.evaluate(() => !TP.app.station.isLead()));
         ok('screen name shown in the list', (await page.locator('#outList').textContent()).includes('DELL U2720Q'));
         ok('lead badge shown', (await page.locator('#outList .tp-badge').count()) === 1);
+        const rows = page.locator('#scrList .tp-scr-row');
+        ok('every monitor listed with a checkbox', await rows.count() === 2 && await page.locator('#scrList input[type=checkbox]').count() === 2);
+        ok('the 4K screen is ticked, with its output', await rows.nth(1).locator('input').isChecked() && (await rows.nth(1).textContent()).includes('Output 1'));
+        ok('this screen is not', !(await rows.nth(0).locator('input').isChecked()) && (await rows.nth(0).textContent()).includes('this screen'));
         const ar = await page.evaluate(() => getComputedStyle(document.getElementById('frame')).getPropertyValue('--ar').trim());
         ok('preview takes the output\'s shape', Math.abs(+ar - 960 / 540) < 0.01, ar);
 
@@ -230,6 +234,21 @@ const FAKE_SCREENS = () => {
         const w1 = await page.evaluate(() => TP.app.renderer.y());
         await wait(600);
         ok('and the scroll carried on here', await page.evaluate(() => TP.app.renderer.y()) > w1);
+
+
+        // ---- tick a monitor to open the prompter there, untick to close it ----
+        await page.evaluate(() => { window.__opened = []; });
+        const [out3] = await Promise.all([ctx.waitForEvent('page'), page.locator('#scrList .tp-scr-row').nth(1).locator('input').check()]);
+        await out3.waitForLoadState('load');
+        await wait(1500);
+        const f3 = await page.evaluate(() => window.__opened);
+        ok('ticking opens on that monitor', f3.length === 1 && /left=1280/.test(f3[0]), f3);
+        ok('it is listed as an output', await page.evaluate(() => TP.app.outputs().length === 1 && TP.app.outputs()[0].screen === 'DELL U2720Q'));
+        ok('and it leads', await out3.evaluate(() => TP.out.station.isLead()));
+        await page.locator('#scrList .tp-scr-row').nth(1).locator('input').uncheck();
+        await wait(1200);
+        ok('unticking closes it', await page.evaluate(() => TP.app.outputs().length) === 0 && out3.isClosed());
+        ok('and the box stays unticked', !(await page.locator('#scrList .tp-scr-row').nth(1).locator('input').isChecked()));
 
         ok('no console errors', errors.length === 0, errors);
     } catch (e) {

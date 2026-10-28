@@ -280,8 +280,10 @@ from what exists):
 - **Detecting monitors and offering them.** On Chromium, `screen.isExtended`
   says a second monitor is there with no prompt. The Present-here bar then
   offers "Open on the other screen", and the control's **Screens** section
-  lists every monitor by name and size with an "Open on …" button
-  (one permission prompt, "Find screens", the first time). The window opens
+  lists every monitor by name and size, each with a checkbox: ticked means
+  a prompter window is open on it, and unticking closes that window. Two
+  monitors with the same name are numbered apart (one permission prompt,
+  "Find screens", the first time). The window opens
   over that monitor and, where Chromium allows it for this permission,
   straight in full screen. Otherwise the output asks for one click (or F)
   for full screen. Without the API (Firefox, Safari) the section says to

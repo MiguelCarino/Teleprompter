@@ -693,7 +693,13 @@
         setInterval(heartbeat, 1000);
     }
 
-    function screenName(e) { return e.label || tt('Screen {n}').replace('{n}', e.n); }
+    // Two monitors of the same model share a label: number them apart.
+    function screenName(e) {
+        if (!e.label) return tt('Screen {n}').replace('{n}', e.n);
+        var twin = scr.state().list.some(function (x) { return x !== e && x.label === e.label; });
+        return twin ? e.label + ' (' + e.n + ')' : e.label;
+    }
+    function outputsOn(e) { var n = screenName(e); return outputs.filter(function (o) { return o.screen === n; }); }
     function openOutput(entry) {
         if (!link) return null;
         var id = TP.link.newId(++openSeq, Math.random());
@@ -749,20 +755,30 @@
         // what the browser can tell about the monitors
         var msg;
         if (!link) msg = tt('This browser cannot open output windows. Present here still works.');
-        else if (st.list.length > 1) msg = tt('{n} screens connected.').replace('{n}', st.list.length);
-        else if (st.list.length === 1) msg = tt('Only one screen is connected. You can still open an output window on it.');
+        else if (st.list.length > 1) msg = tt('{n} screens connected. Tick the ones that show the prompter.').replace('{n}', st.list.length);
+        else if (st.list.length === 1) msg = tt('Only one screen is connected. Tick it to open an output window on it.');
         else if (st.api && st.permission === 'denied') msg = tt('Screen access was refused, so a window opens where the browser puts it: drag it to the other screen and press F.');
         else if (st.api && st.extended) msg = tt('Another screen is connected. Allow screen access to open the prompter on it.');
         else if (st.api && st.extended === false) msg = tt('Only one screen is connected. You can still open an output window on it.');
         else msg = tt('Open an output window, drag it to the other screen and press F there.');
         note.textContent = msg;
 
+        // one row per monitor: ticked = a prompter window is open on it
         list.textContent = '';
         st.list.forEach(function (e) {
-            var b = button(tt('Open on {name}').replace('{name}', screenName(e)), function () { openOutput(e); });
-            var sub = el('span', 'tp-scr-dim', e.width + '×' + e.height + (e.current ? ' · ' + tt('this screen') : e.primary ? ' · ' + tt('main') : ''));
-            b.appendChild(sub);
-            list.appendChild(b);
+            var on = outputsOn(e), row = el('label', 'check tp-scr-row'), c = el('input');
+            c.type = 'checkbox'; c.checked = on.length > 0; c.disabled = !link;
+            c.addEventListener('change', function () {
+                if (c.checked) { if (!openOutput(e)) c.checked = false; }
+                else outputsOn(e).forEach(closeOutput);
+            });
+            row.appendChild(c);
+            var txt = el('span', 'tp-scr-name');
+            txt.appendChild(el('span', null, screenName(e)));
+            txt.appendChild(el('span', 'tp-scr-dim', e.width + '×' + e.height + (e.current ? ' · ' + tt('this screen') : e.primary ? ' · ' + tt('main') : '')));
+            row.appendChild(txt);
+            on.forEach(function (o) { row.appendChild(el('span', 'tp-badge', tt('Output {n}').replace('{n}', outputs.indexOf(o) + 1))); });
+            list.appendChild(row);
         });
         list.hidden = !link || !st.list.length;
         $('scrDetect').hidden = !link || !st.api || st.permission === 'granted' || st.permission === 'denied';

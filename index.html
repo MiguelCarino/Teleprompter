@@ -40,7 +40,11 @@
         .tp-scr-note { margin: 0; font-size: var(--fs-sm); color: var(--text-sec); }
         .tp-scr-list, .tp-outs { display: flex; flex-direction: column; gap: 8px; }
         .tp-scr-list[hidden] { display: none; }
-        .tp-scr-list .cs-btn { justify-content: space-between; gap: 10px; text-align: left; white-space: normal; }
+        .tp-scr-list { gap: 6px; }
+        .tp-scr-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius, 6px); cursor: pointer; }
+        .tp-scr-row { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: var(--fs-sm); color: var(--text); }
+        .tp-scr-row:has(input:checked) { border-color: var(--accent); }
+        .tp-scr-name { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
         .tp-scr-dim { font-family: var(--mono); font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
         .tp-row { display: flex; gap: 8px; flex-wrap: wrap; }
         .tp-out-row { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius, 6px); }
