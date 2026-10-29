@@ -164,9 +164,6 @@
     <!-- Colourful theme + the switch; nothing applies until data-carino-theme="color". -->
     <link rel="stylesheet" href="carino-theme.css">
     <style>
-        /* the hero mark in both colourings; the theme picks one */
-        .mark.mk-color, :root[data-carino-theme="color"] .mark.mk-gold { display: none; }
-        :root[data-carino-theme="color"] .mark.mk-color { display: block; }
         /* Colourful: carino-theme.css remaps the tokens, so the controls follow;
            these are the values above that were written for black. The prompter
            surface (#screen, the preview frame and every output window) stays
@@ -190,8 +187,6 @@
     <div class="ws" role="main">
         <aside class="ws-rail" aria-label="Settings" data-i18n-aria-label="Settings">
             <div class="short-hero rail-head">
-                <img class="mark mk-gold" src="logo.svg" alt="" width="32" height="32">
-                <img class="mark mk-color" src="logo-color.svg" alt="" width="32" height="32">
                 <div><h1>Teleprompter</h1><p class="sh-lede" data-i18n>Write or paste your script, then press Present and read.</p></div>
             </div>
 
