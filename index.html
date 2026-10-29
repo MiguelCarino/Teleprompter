@@ -173,6 +173,9 @@
         :root[data-carino-theme="color"] .tp-ed-back .tp-here-para { background: var(--accent-faint); }
         :root[data-carino-theme="color"] .tp-ed-back .tp-here-line { background: var(--accent-glow); box-shadow: 0 0 0 1px var(--accent-dim); }
         :root[data-carino-theme="color"] .tp-frame { box-shadow: var(--ct-shadow-2); }
+        /* Jump-to markers: headings indigo, stops pink; the current row's border stays --accent */
+        :root[data-carino-theme="color"] .tp-jump-k { color: var(--ct-indigo); }
+        :root[data-carino-theme="color"] .tp-jump[data-kind="stop"] .tp-jump-k { color: var(--ct-pink); }
         /* the HUD floats on that black surface while presenting, so it keeps
            the night inks too rather than a light bar glaring under the script */
         :root[data-carino-theme="color"] .tp-hud { color-scheme: dark; --bg: #050505; --bg-elev: #111; --bg-card: #0a0a0a; --border: #262626; --border-hv: #3a3a3a;
